@@ -209,6 +209,7 @@ func (s *Stream) nextPattern() {
 
 	s.pattern = s.module.patternOrder[s.patternIndex]
 
+	s.patternRowIndex = -1
 	s.patternRowsRemain = s.pattern.numRows
 }
 
