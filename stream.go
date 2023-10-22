@@ -69,12 +69,12 @@ type LoadModuleConfig struct {
 // Use LoadModule method to finish player initialization.
 func NewStream() *Stream {
 	return &Stream{
-		volumeScaling: 0.5,
+		volumeScaling: 0.6,
 	}
 }
 
 // SetVolume adjusts the global volume scaling for the stream.
-// The default value is 0.5; a value of 0 disables the sound.
+// The default value is 0.6; a value of 0 disables the sound.
 // The value is clamped in [0, 1].
 func (s *Stream) SetVolume(v float64) {
 	s.volumeScaling = clamp(v, 0, 1)
@@ -228,8 +228,9 @@ func (s *Stream) readTick(b []byte) {
 				continue
 			}
 			v := inst.samples[int(ch.sampleOffset)]
-			left += int16(float64(v) * ch.computedVolume[0])
-			right += int16(float64(v) * ch.computedVolume[1])
+			// 0.25 is an amplification heuristic to avoid clipping.
+			left += int16(0.25 * float64(v) * ch.computedVolume[0])
+			right += int16(0.25 * float64(v) * ch.computedVolume[1])
 			ch.sampleOffset += ch.note.sampleStep
 			if inst.loopType == xmfile.SampleLoopForward {
 				for ch.sampleOffset >= inst.loopEnd {
