@@ -100,6 +100,24 @@ type InstrumentSample struct {
 	Data         []uint8
 }
 
+type SampleLoopType int
+
+const (
+	SampleLoopNone SampleLoopType = iota
+	SampleLoopForward
+	SampleLoopPingPong
+	SampleLoopUnknown
+)
+
+func (s *InstrumentSample) LoopType() SampleLoopType {
+	bits := s.TypeFlags & 0b11
+	return SampleLoopType(bits)
+}
+
+func (s *InstrumentSample) Is16bits() bool {
+	return (s.TypeFlags & (1 << 4)) != 0
+}
+
 type EnvelopeValueType int
 
 const (

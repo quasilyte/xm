@@ -1,6 +1,7 @@
 package xm
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 
@@ -41,6 +42,11 @@ type patternNote struct {
 type instrument struct {
 	samples  []int16
 	finetune int8
+
+	loopType   xmfile.SampleLoopType
+	loopLength float64
+	loopStart  float64
+	loopEnd    float64
 }
 
 func (m *module) Assign(raw *xmfile.Module, config moduleConfig) error {
@@ -48,6 +54,10 @@ func (m *module) Assign(raw *xmfile.Module, config moduleConfig) error {
 		sampleRate:  float64(config.sampleRate),
 		bpm:         float64(config.bpm),
 		ticksPerRow: float64(config.tempo),
+	}
+
+	if (raw.Flags & (0b1)) != 1 {
+		return errors.New("the Amiga frequency table is not supported yet")
 	}
 
 	m.samplesPerTick = math.Round(m.sampleRate / (m.bpm * 0.4))
@@ -82,17 +92,62 @@ func (m *module) assignInstruments(raw *xmfile.Module) error {
 		// Also note that sample.Data stores deltas while
 		// dstInst will store the absolute values.
 		sample := inst.Samples[0]
-		dstSamples := make([]int16, len(sample.Data))
-		v := uint8(0)
-		for i, delta := range sample.Data {
-			v = uint8(int(v) + int(int8(delta)))
-			dstSamples[i] = int16((int(v) << 8))
+
+		numSamples := len(sample.Data)
+		if sample.Is16bits() {
+			numSamples /= 2
+		}
+		dstSamples := make([]int16, numSamples)
+
+		loopEnd := sample.LoopStart + sample.LoopLength
+		loopStart := sample.LoopStart
+		loopLength := sample.LoopLength
+		if sample.LoopStart > sample.Length {
+			loopStart = loopLength
+		}
+		if loopEnd > sample.Length {
+			loopEnd = sample.Length
+		}
+		loopLength = loopEnd - loopStart
+
+		if sample.Is16bits() {
+			loopEnd /= 2
+			loopStart /= 2
+			loopLength /= 2
+
+			v := int16(0)
+			k := 0
+			for i := 0; i < len(sample.Data); i += 2 {
+				u := binary.LittleEndian.Uint16(sample.Data[i:])
+				v += int16(u)
+				dstSamples[k] = v
+				k++
+			}
+		} else {
+			v := int8(0)
+			for i, delta := range sample.Data {
+				v += int8(delta)
+				dstSamples[i] = int16((int(v) << 8))
+			}
 		}
 
 		dstInst := instrument{
 			samples:  dstSamples,
 			finetune: int8(sample.Finetune),
+
+			loopType:   sample.LoopType(),
+			loopLength: float64(loopLength),
+			loopStart:  float64(loopStart),
+			loopEnd:    float64(loopEnd),
 		}
+
+		switch dstInst.loopType {
+		case xmfile.SampleLoopForward, xmfile.SampleLoopNone:
+			// OK
+		default:
+			return errors.New("only forward loops are supported")
+		}
+
 		m.instruments[i] = dstInst
 	}
 

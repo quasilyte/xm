@@ -106,11 +106,14 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 	}
 	s.channels = s.channels[:m.NumChannels]
 
-	s.module.Assign(m, moduleConfig{
+	err := s.module.Assign(m, moduleConfig{
 		sampleRate: config.SampleRate,
 		bpm:        config.BPM,
 		tempo:      config.Tempo,
 	})
+	if err != nil {
+		return err
+	}
 
 	s.Rewind()
 
@@ -216,13 +219,22 @@ func (s *Stream) readTick(b []byte) {
 		right := int16(0)
 		for j := range s.channels {
 			ch := &s.channels[j]
-			if ch.note == nil || ch.sampleOffset > float64(len(ch.note.inst.samples)) {
+			if ch.note == nil {
 				continue
 			}
-			v := ch.note.inst.samples[int(ch.sampleOffset)]
+			inst := ch.note.inst
+			if ch.sampleOffset > float64(len(inst.samples)) {
+				continue
+			}
+			v := inst.samples[int(ch.sampleOffset)]
 			left += int16(float64(v) * ch.computedVolume[0])
 			right += int16(float64(v) * ch.computedVolume[1])
 			ch.sampleOffset += ch.note.sampleStep
+			if inst.loopType == xmfile.SampleLoopForward {
+				for ch.sampleOffset >= inst.loopEnd {
+					ch.sampleOffset -= inst.loopLength
+				}
+			}
 		}
 
 		// Stereo channel 1.
