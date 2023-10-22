@@ -40,8 +40,9 @@ type patternNote struct {
 }
 
 type instrument struct {
-	samples  []int16
-	finetune int8
+	samples      []int16
+	finetune     int8
+	relativeNote int8
 
 	loopType   xmfile.SampleLoopType
 	loopLength float64
@@ -132,8 +133,10 @@ func (m *module) assignInstruments(raw *xmfile.Module) error {
 		}
 
 		dstInst := instrument{
-			samples:  dstSamples,
-			finetune: int8(sample.Finetune),
+			samples: dstSamples,
+
+			finetune:     int8(sample.Finetune),
+			relativeNote: int8(sample.RelativeNote),
 
 			loopType:   sample.LoopType(),
 			loopLength: float64(loopLength),
@@ -174,7 +177,8 @@ func (m *module) assignPatterns(raw *xmfile.Module) {
 				var n patternNote
 				if rawNote.Instrument != 0 {
 					inst := &m.instruments[rawNote.Instrument-1]
-					period := linearPeriod(float64(rawNote.Note - 1))
+					realNote := calcRealNote(rawNote.Note, inst)
+					period := linearPeriod(realNote)
 					freq := linearFrequency(period)
 					n = patternNote{
 						freq:       freq,

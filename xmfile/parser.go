@@ -401,7 +401,7 @@ func (p *parser) parseInstrumentSampleHeader(sample *InstrumentSample) {
 	case 0xAD:
 		sample.Format = SampleFormatADPCM
 	default:
-		panic(p.errorf("unknown sample encoding scheme"))
+		panic(p.errorf("unknown sample encoding scheme (%#02x)", format))
 	}
 
 	sample.Name = p.readString(22, "sample name")

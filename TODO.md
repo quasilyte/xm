@@ -12,6 +12,11 @@ Features:
 - volume envelopes
 - effects
 
+Bugs:
+- vr_befo.xm results in an error (consumed 9271 extra bytes of the pattern data)
+- bronzer_girl.xm results in an error (unknown sample encoding scheme)
+- hardcode.xm results in an error (unknown sample encoding scheme)
+
 Corner-cases:
 - play an empty pattern if pattern order entry index is invalid
 
