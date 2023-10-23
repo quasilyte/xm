@@ -317,10 +317,10 @@ func (p *parser) parseInstrument() Instrument {
 	inst.KeymapAssignments = p.read(96, "instrument samples keymap assignments")
 
 	inst.EnvelopeVolume = make([]Point, 12)
-	for i := range inst.EnvelopePanning {
+	for i := range inst.EnvelopeVolume {
 		x := uint16(p.readWord("envelope volume point x"))
 		y := uint16(p.readWord("envelope volume point y"))
-		inst.EnvelopePanning[i] = Point{X: x, Y: y}
+		inst.EnvelopeVolume[i] = Point{X: x, Y: y}
 	}
 	inst.EnvelopePanning = make([]Point, 12)
 	for i := range inst.EnvelopePanning {
@@ -341,8 +341,8 @@ func (p *parser) parseInstrument() Instrument {
 	inst.PanningLoopStartPoint = p.readByte("panning loop start point")
 	inst.PanningLoopEndPoint = p.readByte("panning loop end point")
 
-	inst.VolumeType = EnvelopeValueType(p.readByte("volume type"))
-	inst.PanningType = EnvelopeValueType(p.readByte("panning type"))
+	inst.VolumeFlags = EnvelopeFlags(p.readByte("volume type"))
+	inst.PanningFlags = EnvelopeFlags(p.readByte("panning type"))
 
 	inst.VibratoType = p.readByte("vibrato type")
 	inst.VibratoSweep = p.readByte("vibrato sweep")

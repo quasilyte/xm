@@ -68,8 +68,8 @@ type Instrument struct {
 	PanningLoopStartPoint uint8
 	PanningLoopEndPoint   uint8
 
-	VolumeType  EnvelopeValueType
-	PanningType EnvelopeValueType
+	VolumeFlags  EnvelopeFlags
+	PanningFlags EnvelopeFlags
 
 	VibratoType  uint8
 	VibratoSweep uint8
@@ -118,13 +118,19 @@ func (s *InstrumentSample) Is16bits() bool {
 	return (s.TypeFlags & (1 << 4)) != 0
 }
 
-type EnvelopeValueType int
+type EnvelopeFlags int
 
-const (
-	VolumeOn EnvelopeValueType = iota
-	VolumeSustain
-	VolumeLoop
-)
+func (f EnvelopeFlags) IsOn() bool {
+	return f&(1<<0) != 0
+}
+
+func (f EnvelopeFlags) SustainEnabled() bool {
+	return f&(1<<1) != 0
+}
+
+func (f EnvelopeFlags) LoopEnabled() bool {
+	return f&(1<<2) != 0
+}
 
 type SampleFormat int
 
