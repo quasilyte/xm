@@ -198,7 +198,7 @@ func (s *Stream) nextRow() {
 			}
 		} else {
 			// Start playing next note.
-			ch.sampleOffset = 0
+			ch.sampleOffset = 0 // TODO: loopStart for loops?
 			ch.note = n
 		}
 	}
@@ -228,13 +228,32 @@ func (s *Stream) readTick(b []byte) {
 				continue
 			}
 			v := inst.samples[int(ch.sampleOffset)]
+
 			// 0.25 is an amplification heuristic to avoid clipping.
 			left += int16(0.25 * float64(v) * ch.computedVolume[0])
 			right += int16(0.25 * float64(v) * ch.computedVolume[1])
-			ch.sampleOffset += ch.note.sampleStep
-			if inst.loopType == xmfile.SampleLoopForward {
+
+			switch inst.loopType {
+			case xmfile.SampleLoopNone:
+				ch.sampleOffset += ch.note.sampleStep
+			case xmfile.SampleLoopForward:
+				ch.sampleOffset += ch.note.sampleStep
 				for ch.sampleOffset >= inst.loopEnd {
 					ch.sampleOffset -= inst.loopLength
+				}
+			case xmfile.SampleLoopPingPong:
+				if ch.reverse {
+					ch.sampleOffset -= ch.note.sampleStep
+					if ch.sampleOffset <= inst.loopStart {
+						ch.reverse = false
+						ch.sampleOffset = float64(int(inst.loopStart) + (int(ch.sampleOffset) % int(inst.loopLength)))
+					}
+				} else {
+					ch.sampleOffset += ch.note.sampleStep
+					if ch.sampleOffset >= inst.loopEnd {
+						ch.reverse = true
+						ch.sampleOffset = float64(int(inst.loopEnd) - (int(ch.sampleOffset) % int(inst.loopLength)))
+					}
 				}
 			}
 		}

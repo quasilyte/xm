@@ -1,6 +1,7 @@
 Optimization:
 - add benchmarks
 - don't initialize runners for empty channels
+- cut comment-only samples
 
 Features:
 + forward looping

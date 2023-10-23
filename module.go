@@ -100,16 +100,21 @@ func (m *module) assignInstruments(raw *xmfile.Module) error {
 		}
 		dstSamples := make([]int16, numSamples)
 
-		loopEnd := sample.LoopStart + sample.LoopLength
+		loopEnd := sample.LoopStart + sample.LoopLength - 1
 		loopStart := sample.LoopStart
 		loopLength := sample.LoopLength
 		if sample.LoopStart > sample.Length {
 			loopStart = loopLength
 		}
 		if loopEnd > sample.Length {
-			loopEnd = sample.Length
+			loopEnd = sample.Length - 1
 		}
 		loopLength = loopEnd - loopStart
+		if sample.LoopType() == xmfile.SampleLoopForward {
+			if loopStart > loopEnd {
+				return errors.New("sample loopStart > loopEnd")
+			}
+		}
 
 		if sample.Is16bits() {
 			loopEnd /= 2
@@ -145,10 +150,10 @@ func (m *module) assignInstruments(raw *xmfile.Module) error {
 		}
 
 		switch dstInst.loopType {
-		case xmfile.SampleLoopForward, xmfile.SampleLoopNone:
+		case xmfile.SampleLoopForward, xmfile.SampleLoopNone, xmfile.SampleLoopPingPong:
 			// OK
 		default:
-			return errors.New("only forward loops are supported")
+			return errors.New("unknown sample loop type")
 		}
 
 		m.instruments[i] = dstInst
