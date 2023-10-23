@@ -106,7 +106,7 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 	}
 	s.channels = s.channels[:m.NumChannels]
 
-	err := s.module.Assign(m, moduleConfig{
+	compiled, err := compileModule(m, moduleConfig{
 		sampleRate: config.SampleRate,
 		bpm:        config.BPM,
 		tempo:      config.Tempo,
@@ -114,6 +114,7 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 	if err != nil {
 		return err
 	}
+	s.module = compiled
 
 	s.Rewind()
 
@@ -201,12 +202,12 @@ func (s *Stream) nextRow() {
 			ch.sampleOffset = 0 // TODO: loopStart for loops?
 			ch.note = n
 			ch.volume = n.inst.volume
-			if n.effect1.op != effectNone {
-				s.applyEffect(ch, n.effect1)
-			}
-			if n.effect2.op != effectNone {
-				s.applyEffect(ch, n.effect2)
-			}
+		}
+		if n.effect1.op != effectNone {
+			s.applyEffect(ch, n.effect1)
+		}
+		if n.effect2.op != effectNone {
+			s.applyEffect(ch, n.effect2)
 		}
 	}
 }

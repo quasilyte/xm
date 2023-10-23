@@ -1,8 +1,9 @@
 package xm
 
 type streamChannel struct {
+	note *patternNote
+
 	sampleOffset   float64
-	note           *patternNote
 	volume         float64
 	computedVolume [2]float64
 
