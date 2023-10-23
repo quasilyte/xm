@@ -5,13 +5,15 @@ Optimization:
 
 Features:
 + forward looping
-- ping pong looping
++ ping pong looping
 + 16-bit samples
 - amiga frequency
 - panning
 - panning envelopes
 - volume envelopes
-- effects
+
+Effects:
+- 0x0D pattern break
 
 Bugs:
 - vr_befo.xm results in an error (consumed 9271 extra bytes of the pattern data)
