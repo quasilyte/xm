@@ -37,12 +37,22 @@ type patternNote struct {
 	inst       *instrument
 	freq       float64
 	sampleStep float64
+
+	effect1 noteEffect // Volume byte converted to the standard effect
+	effect2 noteEffect
+}
+
+type noteEffect struct {
+	op  effectOp
+	arg uint8
 }
 
 type instrument struct {
 	samples      []int16
 	finetune     int8
 	relativeNote int8
+
+	volume float64
 
 	loopType   xmfile.SampleLoopType
 	loopLength float64
@@ -143,6 +153,8 @@ func (m *module) assignInstruments(raw *xmfile.Module) error {
 			finetune:     int8(sample.Finetune),
 			relativeNote: int8(sample.RelativeNote),
 
+			volume: float64(sample.Volume) / 0x40,
+
 			loopType:   sample.LoopType(),
 			loopLength: float64(loopLength),
 			loopStart:  float64(loopStart),
@@ -189,6 +201,7 @@ func (m *module) assignPatterns(raw *xmfile.Module) {
 						freq:       freq,
 						inst:       inst,
 						sampleStep: freq / m.sampleRate,
+						effect1:    volumeByteToEffect(rawNote.Volume),
 					}
 				}
 				pat.notes = append(pat.notes, n)

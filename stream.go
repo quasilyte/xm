@@ -174,8 +174,8 @@ func (s *Stream) nextTick() {
 	panning := 0.5
 	for j := range s.channels {
 		ch := &s.channels[j]
-		ch.computedVolume[0] = s.volumeScaling * math.Sqrt(1.0-panning)
-		ch.computedVolume[1] = s.volumeScaling * math.Sqrt(panning)
+		ch.computedVolume[0] = s.volumeScaling * ch.volume * math.Sqrt(1.0-panning)
+		ch.computedVolume[1] = s.volumeScaling * ch.volume * math.Sqrt(panning)
 	}
 }
 
@@ -200,7 +200,22 @@ func (s *Stream) nextRow() {
 			// Start playing next note.
 			ch.sampleOffset = 0 // TODO: loopStart for loops?
 			ch.note = n
+			ch.volume = n.inst.volume
+			if n.effect1.op != effectNone {
+				s.applyEffect(ch, n.effect1)
+			}
+			if n.effect2.op != effectNone {
+				s.applyEffect(ch, n.effect2)
+			}
 		}
+	}
+}
+
+func (s *Stream) applyEffect(ch *streamChannel, e noteEffect) {
+	switch e.op {
+	case effectSetVolume:
+		// e.arg never overflows 64.
+		ch.volume = float64(e.arg) / 0x40
 	}
 }
 

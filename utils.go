@@ -28,3 +28,18 @@ func linearPeriod(note float64) float64 {
 func linearFrequency(period float64) float64 {
 	return 8363.0 * math.Pow(2, (4608-period)/768)
 }
+
+func volumeByteToEffect(v uint8) noteEffect {
+	var e noteEffect
+
+	switch {
+	case v <= 0x0F:
+		// Do nothing.
+	case v <= 0x50:
+		// Set volume effect.
+		e.op = effectSetVolume
+		e.arg = v - 0x10
+	}
+
+	return e
+}
