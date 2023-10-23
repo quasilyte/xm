@@ -23,8 +23,12 @@ func clamp(v, min, max float64) float64 {
 
 func calcRealNote(note uint8, inst *instrument) float64 {
 	fnote := float64(note)
-	frelativeNote := float64(inst.relativeNote)
-	ffinetune := float64(inst.finetune)
+	var frelativeNote float64
+	var ffinetune float64
+	if inst != nil {
+		frelativeNote = float64(inst.relativeNote)
+		ffinetune = float64(inst.finetune)
+	}
 	return (fnote + frelativeNote + ffinetune/128) - 1
 }
 

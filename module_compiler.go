@@ -168,12 +168,11 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				if rawNote.Instrument != 0 {
 					inst = &c.result.instruments[rawNote.Instrument-1]
 				}
-				var realNote float64
-				if inst != nil {
-					realNote = calcRealNote(rawNote.Note, inst)
+
+				period := linearPeriod(calcRealNote(rawNote.Note, inst))
+				if inst == nil && (rawNote.Note == 0 || rawNote.Note == 97) {
+					period = 0
 				}
-				period := linearPeriod(realNote)
-				freq := linearFrequency(period)
 
 				e1 := xmdb.Effect{}
 				if rawNote.Note == 97 {
@@ -184,10 +183,9 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				ek := c.internEffect(e1, e2, e3)
 
 				n = patternNote{
-					freq:       freq,
-					inst:       inst,
-					sampleStep: freq / c.result.sampleRate,
-					effect:     ek,
+					period: period,
+					inst:   inst,
+					effect: ek,
 				}
 				pat.notes = append(pat.notes, n)
 			}
@@ -198,7 +196,7 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 }
 
 func (c *moduleCompiler) internEffect(e1, e2, e3 xmdb.Effect) effectKey {
-	hash := (uint64(e1.AsUint16()) << 0 * 16) | (uint64(e2.AsUint16()) << 1 * 16) | (uint64(e3.AsUint16()) << 2 * 16)
+	hash := (uint64(e1.AsUint16()) << (0 * 16)) | (uint64(e2.AsUint16()) << (1 * 16)) | (uint64(e3.AsUint16()) << (2 * 16))
 	if hash == 0 {
 		return effectKey(0)
 	}
@@ -233,13 +231,22 @@ func (c *moduleCompiler) internEffect(e1, e2, e3 xmdb.Effect) effectKey {
 			if v > 64 {
 				v = 64
 			}
-			compiled.floatValue = float64(v) / 0x40
+			compiled.floatValue = float64(v) / 64
 
 		case xmdb.EffectKeyOff:
 			if e.Arg > uint8(c.result.ticksPerRow-1) {
 				// This effect will have no effect. Discard it.
 				continue
 			}
+
+		case xmdb.EffectArpeggio:
+			compiled.arp[0] = 0              // The original note
+			compiled.arp[1] = e.Arg >> 4     // X note delta
+			compiled.arp[2] = e.Arg & 0b1111 // Y note delta
+
+			// TODO: depending on the tracker-style, use XY or YX order?
+			// For now, use Fasttracker II convention with YX.
+			compiled.arp[1], compiled.arp[2] = compiled.arp[2], compiled.arp[1]
 		}
 
 		c.result.effectTab = append(c.result.effectTab, compiled)

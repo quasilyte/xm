@@ -33,9 +33,8 @@ type pattern struct {
 }
 
 type patternNote struct {
-	inst       *instrument
-	freq       float64
-	sampleStep float64
+	inst   *instrument
+	period float64
 
 	effect effectKey // Can be empty, see effectKey.IsEmpty()
 }
@@ -43,6 +42,7 @@ type patternNote struct {
 type noteEffect struct {
 	op         xmdb.EffectOp
 	rawValue   uint8
+	arp        [3]uint8
 	floatValue float64
 }
 

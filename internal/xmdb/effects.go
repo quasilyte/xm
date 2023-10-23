@@ -1,6 +1,8 @@
 package xmdb
 
-import "github.com/quasilyte/xm/xmfile"
+import (
+	"github.com/quasilyte/xm/xmfile"
+)
 
 type Effect struct {
 	Op  EffectOp
@@ -11,6 +13,10 @@ type EffectOp int
 
 const (
 	EffectNone EffectOp = iota
+
+	// Encoding: effect=0x00
+	// Arg: semitone offsets
+	EffectArpeggio
 
 	// Encoding: effect=0x0C [or] volume byte
 	// Arg: volume level
@@ -25,6 +31,10 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 	e := Effect{Arg: n.EffectParameter}
 
 	switch n.EffectType {
+	case 0x00:
+		if n.EffectParameter != 0 {
+			e.Op = EffectArpeggio
+		}
 	case 0x14:
 		e.Op = EffectKeyOff
 	}

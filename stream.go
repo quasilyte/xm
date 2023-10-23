@@ -179,12 +179,24 @@ func (s *Stream) nextTick() {
 	panning := 0.5
 	for j := range s.channels {
 		ch := &s.channels[j]
+
 		s.envelopeTick(ch)
+
 		ch.computedVolume[0] = s.volumeScaling * ch.volume * ch.fadeoutVolume * math.Sqrt(1.0-panning)
 		ch.computedVolume[1] = s.volumeScaling * ch.volume * ch.fadeoutVolume * math.Sqrt(panning)
+
+		ch.arpeggioTicked = false
 		if !ch.effect.IsEmpty() {
 			s.applyTickEffect(ch)
 		}
+
+		if ch.arpeggioRunning && !ch.arpeggioTicked {
+			ch.arpeggioRunning = false
+			ch.arpeggioNoteOffset = 0
+		}
+
+		freq := linearFrequency(ch.period - 64*ch.arpeggioNoteOffset)
+		ch.sampleStep = freq / s.module.sampleRate
 	}
 }
 
@@ -216,11 +228,9 @@ func (s *Stream) nextRow() {
 		n := &notes[i]
 
 		if n.inst == nil {
-			if n.freq != 0 {
-				ch.freq = n.freq
-			}
-			if !n.effect.IsEmpty() {
-				ch.effect = n.effect
+			ch.effect = n.effect
+			if n.period != 0 {
+				ch.period = n.period
 			}
 			if ch.inst != nil && ch.sampleOffset >= float64(len(ch.inst.samples)) {
 				ch.inst = nil
@@ -230,8 +240,7 @@ func (s *Stream) nextRow() {
 			ch.sampleOffset = 0 // TODO: loopStart for loops?
 			ch.volume = n.inst.volume
 			ch.inst = n.inst
-			ch.freq = n.freq
-			ch.sampleStep = n.sampleStep
+			ch.period = n.period
 			ch.effect = n.effect
 			ch.sustain = true
 			ch.fadeoutVolume = 1
@@ -250,23 +259,40 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 		switch e.op {
 		case xmdb.EffectSetVolume:
 			ch.volume = e.floatValue
+
+		case xmdb.EffectKeyOff:
+			if e.rawValue != 0 {
+				break
+			}
+			s.keyOff(ch)
 		}
+	}
+}
+
+func (s *Stream) keyOff(ch *streamChannel) {
+	ch.sustain = false
+	if ch.inst == nil || !ch.inst.volumeFlags.IsOn() {
+		ch.volume = 0
 	}
 }
 
 func (s *Stream) applyTickEffect(ch *streamChannel) {
 	numEffects := ch.effect.Len()
 	offset := ch.effect.Index()
+
 	for _, e := range s.module.effectTab[offset : offset+numEffects] {
 		switch e.op {
 		case xmdb.EffectKeyOff:
 			if e.rawValue != uint8(s.tickIndex) {
 				break
 			}
-			ch.sustain = false
-			if ch.inst == nil || !ch.inst.volumeFlags.IsOn() {
-				ch.volume = 0
-			}
+			s.keyOff(ch)
+
+		case xmdb.EffectArpeggio:
+			i := s.tickIndex % 3
+			ch.arpeggioNoteOffset = float64(e.arp[i])
+			ch.arpeggioRunning = i != 0
+			ch.arpeggioTicked = true
 		}
 	}
 }
