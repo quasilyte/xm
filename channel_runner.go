@@ -1,10 +1,16 @@
 package xm
 
 type streamChannel struct {
-	note *patternNote
+	// Note-related data.
+	inst       *instrument
+	freq       float64
+	sampleStep float64
+	effect     effectKey
+	sustain    bool
 
 	sampleOffset   float64
 	volume         float64
+	fadeoutVolume  float64
 	computedVolume [2]float64
 
 	// Ping-pong loop state.

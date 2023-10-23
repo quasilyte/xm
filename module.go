@@ -1,6 +1,7 @@
 package xm
 
 import (
+	"github.com/quasilyte/xm/internal/xmdb"
 	"github.com/quasilyte/xm/xmfile"
 )
 
@@ -9,6 +10,8 @@ type module struct {
 
 	patterns     []pattern
 	patternOrder []*pattern
+
+	effectTab []noteEffect
 
 	sampleRate     float64
 	bpm            float64
@@ -34,13 +37,13 @@ type patternNote struct {
 	freq       float64
 	sampleStep float64
 
-	effect1 noteEffect // Volume byte converted to the standard effect
-	effect2 noteEffect
+	effect effectKey // Can be empty, see effectKey.IsEmpty()
 }
 
 type noteEffect struct {
-	op  effectOp
-	arg uint8
+	op         xmdb.EffectOp
+	rawValue   uint8
+	floatValue float64
 }
 
 type instrument struct {
@@ -50,8 +53,25 @@ type instrument struct {
 
 	volume float64
 
+	volumeFlags  xmfile.EnvelopeFlags
+	panningFlags xmfile.EnvelopeFlags
+
+	volumeFadeoutStep float64
+
 	loopType   xmfile.SampleLoopType
 	loopLength float64
 	loopStart  float64
 	loopEnd    float64
 }
+
+type effectKey uint16
+
+func makeEffectKey(index, length uint) effectKey {
+	return effectKey((uint16(index) << 2) | (uint16(length) & 0b11))
+}
+
+func (k effectKey) IsEmpty() bool { return k == 0 }
+
+func (k effectKey) Len() uint { return uint(k & 0b11) }
+
+func (k effectKey) Index() uint { return uint(k >> 2) }

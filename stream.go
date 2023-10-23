@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 
+	"github.com/quasilyte/xm/internal/xmdb"
 	"github.com/quasilyte/xm/xmfile"
 )
 
@@ -16,6 +17,7 @@ type Stream struct {
 	patternRowsRemain int
 	patternRowIndex   int
 	rowTicksRemain    int
+	tickIndex         int
 
 	volumeScaling float64
 
@@ -69,12 +71,12 @@ type LoadModuleConfig struct {
 // Use LoadModule method to finish player initialization.
 func NewStream() *Stream {
 	return &Stream{
-		volumeScaling: 0.6,
+		volumeScaling: 0.8,
 	}
 }
 
 // SetVolume adjusts the global volume scaling for the stream.
-// The default value is 0.6; a value of 0 disables the sound.
+// The default value is 0.8; a value of 0 disables the sound.
 // The value is clamped in [0, 1].
 func (s *Stream) SetVolume(v float64) {
 	s.volumeScaling = clamp(v, 0, 1)
@@ -157,6 +159,7 @@ func (s *Stream) Rewind() {
 	s.patternRowsRemain = 0
 	s.patternRowIndex = -1
 	s.rowTicksRemain = 0
+	s.tickIndex = -1
 }
 
 func (s *Stream) GetInfo() StreamInfo {
@@ -171,12 +174,29 @@ func (s *Stream) nextTick() {
 	}
 
 	s.rowTicksRemain--
+	s.tickIndex++
 
 	panning := 0.5
 	for j := range s.channels {
 		ch := &s.channels[j]
-		ch.computedVolume[0] = s.volumeScaling * ch.volume * math.Sqrt(1.0-panning)
-		ch.computedVolume[1] = s.volumeScaling * ch.volume * math.Sqrt(panning)
+		s.envelopeTick(ch)
+		ch.computedVolume[0] = s.volumeScaling * ch.volume * ch.fadeoutVolume * math.Sqrt(1.0-panning)
+		ch.computedVolume[1] = s.volumeScaling * ch.volume * ch.fadeoutVolume * math.Sqrt(panning)
+		if !ch.effect.IsEmpty() {
+			s.applyTickEffect(ch)
+		}
+	}
+}
+
+func (s *Stream) envelopeTick(ch *streamChannel) {
+	if ch.inst == nil {
+		return
+	}
+
+	if ch.inst.volumeFlags.IsOn() {
+		if !ch.sustain {
+			ch.fadeoutVolume = clampMin(ch.fadeoutVolume-ch.inst.volumeFadeoutStep, 0)
+		}
 	}
 }
 
@@ -190,33 +210,64 @@ func (s *Stream) nextRow() {
 	noteOffset := s.pattern.numChannels * s.patternRowIndex
 	notes := s.pattern.notes[noteOffset : noteOffset+s.pattern.numChannels]
 	s.rowTicksRemain = int(s.module.ticksPerRow)
+	s.tickIndex = -1
 	for i := range s.channels {
 		ch := &s.channels[i]
 		n := &notes[i]
+
 		if n.inst == nil {
-			if ch.note != nil && ch.sampleOffset >= float64(len(ch.note.inst.samples)) {
-				ch.note = nil
+			if n.freq != 0 {
+				ch.freq = n.freq
+			}
+			if !n.effect.IsEmpty() {
+				ch.effect = n.effect
+			}
+			if ch.inst != nil && ch.sampleOffset >= float64(len(ch.inst.samples)) {
+				ch.inst = nil
 			}
 		} else {
 			// Start playing next note.
 			ch.sampleOffset = 0 // TODO: loopStart for loops?
-			ch.note = n
 			ch.volume = n.inst.volume
+			ch.inst = n.inst
+			ch.freq = n.freq
+			ch.sampleStep = n.sampleStep
+			ch.effect = n.effect
+			ch.sustain = true
+			ch.fadeoutVolume = 1
 		}
-		if n.effect1.op != effectNone {
-			s.applyEffect(ch, n.effect1)
-		}
-		if n.effect2.op != effectNone {
-			s.applyEffect(ch, n.effect2)
+
+		if !ch.effect.IsEmpty() {
+			s.applyRowEffect(ch)
 		}
 	}
 }
 
-func (s *Stream) applyEffect(ch *streamChannel, e noteEffect) {
-	switch e.op {
-	case effectSetVolume:
-		// e.arg never overflows 64.
-		ch.volume = float64(e.arg) / 0x40
+func (s *Stream) applyRowEffect(ch *streamChannel) {
+	numEffects := ch.effect.Len()
+	offset := ch.effect.Index()
+	for _, e := range s.module.effectTab[offset : offset+numEffects] {
+		switch e.op {
+		case xmdb.EffectSetVolume:
+			ch.volume = e.floatValue
+		}
+	}
+}
+
+func (s *Stream) applyTickEffect(ch *streamChannel) {
+	numEffects := ch.effect.Len()
+	offset := ch.effect.Index()
+	for _, e := range s.module.effectTab[offset : offset+numEffects] {
+		switch e.op {
+		case xmdb.EffectKeyOff:
+			if e.rawValue != uint8(s.tickIndex) {
+				break
+			}
+			ch.sustain = false
+			if ch.inst == nil || !ch.inst.volumeFlags.IsOn() {
+				ch.volume = 0
+			}
+		}
 	}
 }
 
@@ -236,10 +287,10 @@ func (s *Stream) readTick(b []byte) {
 		right := int16(0)
 		for j := range s.channels {
 			ch := &s.channels[j]
-			if ch.note == nil {
+			inst := ch.inst
+			if inst == nil {
 				continue
 			}
-			inst := ch.note.inst
 			if ch.sampleOffset > float64(len(inst.samples)) {
 				continue
 			}
@@ -251,21 +302,21 @@ func (s *Stream) readTick(b []byte) {
 
 			switch inst.loopType {
 			case xmfile.SampleLoopNone:
-				ch.sampleOffset += ch.note.sampleStep
+				ch.sampleOffset += ch.sampleStep
 			case xmfile.SampleLoopForward:
-				ch.sampleOffset += ch.note.sampleStep
+				ch.sampleOffset += ch.sampleStep
 				for ch.sampleOffset >= inst.loopEnd {
 					ch.sampleOffset -= inst.loopLength
 				}
 			case xmfile.SampleLoopPingPong:
 				if ch.reverse {
-					ch.sampleOffset -= ch.note.sampleStep
+					ch.sampleOffset -= ch.sampleStep
 					if ch.sampleOffset <= inst.loopStart {
 						ch.reverse = false
 						ch.sampleOffset = float64(int(inst.loopStart) + (int(ch.sampleOffset) % int(inst.loopLength)))
 					}
 				} else {
-					ch.sampleOffset += ch.note.sampleStep
+					ch.sampleOffset += ch.sampleStep
 					if ch.sampleOffset >= inst.loopEnd {
 						ch.reverse = true
 						ch.sampleOffset = float64(int(inst.loopEnd) - (int(ch.sampleOffset) % int(inst.loopLength)))

@@ -5,15 +5,23 @@ import (
 	"errors"
 	"math"
 
+	"github.com/quasilyte/xm/internal/xmdb"
 	"github.com/quasilyte/xm/xmfile"
 )
 
 type moduleCompiler struct {
 	result module
+
+	effectSet map[uint64]effectKey
+
+	effectBuf []xmdb.Effect
 }
 
 func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
-	c := &moduleCompiler{}
+	c := &moduleCompiler{
+		effectSet: make(map[uint64]effectKey, 16),
+		effectBuf: make([]xmdb.Effect, 0, 4),
+	}
 	c.result = module{
 		sampleRate:  float64(config.sampleRate),
 		bpm:         float64(config.bpm),
@@ -114,6 +122,11 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 
 			volume: float64(sample.Volume) / 0x40,
 
+			volumeFlags:  inst.VolumeFlags,
+			panningFlags: inst.PanningFlags,
+
+			volumeFadeoutStep: float64(inst.VolumeFadeout) / 32768,
+
 			loopType:   sample.LoopType(),
 			loopLength: float64(loopLength),
 			loopStart:  float64(loopStart),
@@ -151,21 +164,30 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 		for _, row := range rawPat.Rows {
 			for _, rawNote := range row.Notes {
 				var n patternNote
+				var inst *instrument
 				if rawNote.Instrument != 0 {
-					inst := &c.result.instruments[rawNote.Instrument-1]
-					realNote := calcRealNote(rawNote.Note, inst)
-					period := linearPeriod(realNote)
-					freq := linearFrequency(period)
-					// var effect0 noteEffect
-					// if rawNote.Note == 97 {
-					// 	effect0.op = effectKeyOff
-					// }
-					n = patternNote{
-						freq:       freq,
-						inst:       inst,
-						sampleStep: freq / c.result.sampleRate,
-						effect1:    volumeByteToEffect(rawNote.Volume),
-					}
+					inst = &c.result.instruments[rawNote.Instrument-1]
+				}
+				var realNote float64
+				if inst != nil {
+					realNote = calcRealNote(rawNote.Note, inst)
+				}
+				period := linearPeriod(realNote)
+				freq := linearFrequency(period)
+
+				e1 := xmdb.Effect{}
+				if rawNote.Note == 97 {
+					e1.Op = xmdb.EffectKeyOff
+				}
+				e2 := xmdb.EffectFromVolumeByte(rawNote.Volume)
+				e3 := xmdb.ConvertEffect(rawNote)
+				ek := c.internEffect(e1, e2, e3)
+
+				n = patternNote{
+					freq:       freq,
+					inst:       inst,
+					sampleStep: freq / c.result.sampleRate,
+					effect:     ek,
 				}
 				pat.notes = append(pat.notes, n)
 			}
@@ -173,4 +195,58 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 	}
 
 	return nil
+}
+
+func (c *moduleCompiler) internEffect(e1, e2, e3 xmdb.Effect) effectKey {
+	hash := (uint64(e1.AsUint16()) << 0 * 16) | (uint64(e2.AsUint16()) << 1 * 16) | (uint64(e3.AsUint16()) << 2 * 16)
+	if hash == 0 {
+		return effectKey(0)
+	}
+	if k, ok := c.effectSet[hash]; ok {
+		// This effects combination is already interned.
+		return k
+	}
+
+	index := len(c.result.effectTab)
+
+	buf := c.effectBuf[:0]
+	if e1.Op != xmdb.EffectNone {
+		buf = append(buf, e1)
+	}
+	if e2.Op != xmdb.EffectNone {
+		buf = append(buf, e2)
+	}
+	if e3.Op != xmdb.EffectNone {
+		buf = append(buf, e3)
+	}
+
+	realLength := 0
+	for _, e := range buf {
+		compiled := noteEffect{
+			op:       e.Op,
+			rawValue: e.Arg,
+		}
+
+		switch e.Op {
+		case xmdb.EffectSetVolume:
+			v := e.Arg
+			if v > 64 {
+				v = 64
+			}
+			compiled.floatValue = float64(v) / 0x40
+
+		case xmdb.EffectKeyOff:
+			if e.Arg > uint8(c.result.ticksPerRow-1) {
+				// This effect will have no effect. Discard it.
+				continue
+			}
+		}
+
+		c.result.effectTab = append(c.result.effectTab, compiled)
+		realLength++
+	}
+
+	k := makeEffectKey(uint(index), uint(realLength))
+	c.effectSet[hash] = k
+	return k
 }
