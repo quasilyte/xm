@@ -22,6 +22,10 @@ const (
 	// Arg: volume level
 	EffectSetVolume
 
+	// Encoding: part of the volume byte
+	EffectVolumeSlideDown
+	EffectVolumeSlideUp
+
 	// Encoding: effect=0x0A
 	// Arg: slide up/down speed
 	EffectVolumeSlide
@@ -64,10 +68,16 @@ func EffectFromVolumeByte(v uint8) Effect {
 	case v <= 0x0F:
 		// Do nothing.
 
-	case v <= 0x50:
-		// Set volume effect.
+	case v >= 0x10 && v <= 0x50:
 		e.Op = EffectSetVolume
 		e.Arg = v - 0x10
+
+	case v >= 0x60 && v <= 0x6f:
+		e.Op = EffectVolumeSlideDown
+		e.Arg = v & 0x0F
+	case v >= 0x70 && v <= 0x7f:
+		e.Op = EffectVolumeSlideUp
+		e.Arg = v & 0x0F
 	}
 
 	return e

@@ -333,6 +333,11 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 				break
 			}
 			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
+
+		case xmdb.EffectVolumeSlideDown:
+			ch.volume = clampMin(ch.volume-e.floatValue, 0)
+		case xmdb.EffectVolumeSlideUp:
+			ch.volume = clampMax(ch.volume+e.floatValue, 1)
 		}
 	}
 }

@@ -260,6 +260,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 			// For now, use Fasttracker II convention with YX.
 			compiled.arp[1], compiled.arp[2] = compiled.arp[2], compiled.arp[1]
 
+		case xmdb.EffectVolumeSlideUp, xmdb.EffectVolumeSlideDown:
+			compiled.floatValue = float64(e.Arg) / 64
+
 		case xmdb.EffectVolumeSlide:
 			slideUp := e.Arg >> 4
 			slideDown := e.Arg & 0b1111

@@ -11,6 +11,13 @@ func clampMin(v, min float64) float64 {
 	return v
 }
 
+func clampMax(v, max float64) float64 {
+	if v > max {
+		return max
+	}
+	return v
+}
+
 func clamp(v, min, max float64) float64 {
 	if v < min {
 		return min
