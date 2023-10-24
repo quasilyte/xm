@@ -26,6 +26,10 @@ const (
 	// Arg: slide up/down speed
 	EffectVolumeSlide
 
+	// Encoding: effect=0x0D
+	// Arg: target row number (on the next pattern)
+	EffectPatternBreak
+
 	// Encoding: effect=0x14 [or] key-off note
 	// Arg: tick number (always a first tick for key-off note)
 	EffectKeyOff
@@ -42,6 +46,9 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x0A:
 		e.Op = EffectVolumeSlide
+
+	case 0x0D:
+		e.Op = EffectPatternBreak
 
 	case 0x14:
 		e.Op = EffectKeyOff

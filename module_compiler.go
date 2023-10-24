@@ -271,6 +271,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 			} else {
 				compiled.floatValue = -(float64(slideDown) / 64)
 			}
+
+		case xmdb.EffectPatternBreak:
+			compiled.rawValue = (e.Arg>>4)*10 + (e.Arg & 0b1111)
 		}
 
 		c.result.effectTab = append(c.result.effectTab, compiled)

@@ -19,10 +19,22 @@ type Stream struct {
 	rowTicksRemain    int
 	tickIndex         int
 
+	// Pattern break state.
+	jumpKind    jumpKind
+	jumpPattern int
+	jumpRow     int
+
 	volumeScaling float64
 
 	channels []streamChannel
 }
+
+type jumpKind uint8
+
+const (
+	jumpNone jumpKind = iota
+	jumpPatternBreak
+)
 
 type StreamInfo struct {
 	BytesPerTick uint
@@ -213,12 +225,21 @@ func (s *Stream) envelopeTick(ch *streamChannel) {
 }
 
 func (s *Stream) nextRow() {
-	if s.patternRowsRemain == 0 {
-		s.nextPattern()
+	if s.jumpKind == jumpNone {
+		// Normal execution.
+		if s.patternRowsRemain == 0 {
+			s.nextPattern()
+		}
+		s.patternRowIndex++
+		s.patternRowsRemain--
+	} else {
+		// Execute a pattern jump.
+		s.jumpKind = jumpNone
+		s.selectPattern(s.jumpPattern)
+		s.patternRowIndex = s.jumpRow
+		s.patternRowsRemain = s.pattern.numRows - s.patternRowIndex - 1
 	}
 
-	s.patternRowIndex++
-	s.patternRowsRemain--
 	noteOffset := s.pattern.numChannels * s.patternRowIndex
 	notes := s.pattern.notes[noteOffset : noteOffset+s.pattern.numChannels]
 	s.rowTicksRemain = int(s.module.ticksPerRow)
@@ -273,6 +294,11 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 			if e.floatValue != 0 {
 				ch.volumeSlideValue = e.floatValue
 			}
+
+		case xmdb.EffectPatternBreak:
+			s.jumpKind = jumpPatternBreak
+			s.jumpPattern = s.patternIndex + 1
+			s.jumpRow = int(e.rawValue)
 		}
 	}
 }
@@ -312,8 +338,11 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 }
 
 func (s *Stream) nextPattern() {
-	s.patternIndex++
+	s.selectPattern(s.patternIndex + 1)
+}
 
+func (s *Stream) selectPattern(i int) {
+	s.patternIndex = i
 	s.pattern = s.module.patternOrder[s.patternIndex]
 
 	s.patternRowIndex = -1
