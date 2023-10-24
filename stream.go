@@ -237,11 +237,14 @@ func (s *Stream) nextRow() {
 			}
 		} else {
 			// Start playing next note.
-			ch.sampleOffset = 0 // TODO: loopStart for loops?
+			if n.period != 0 {
+				ch.sampleOffset = 0 // TODO: loopStart for loops?
+				ch.reverse = false
+				ch.period = n.period
+			}
+			ch.effect = n.effect
 			ch.volume = n.inst.volume
 			ch.inst = n.inst
-			ch.period = n.period
-			ch.effect = n.effect
 			ch.sustain = true
 			ch.fadeoutVolume = 1
 		}
@@ -265,6 +268,11 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 				break
 			}
 			s.keyOff(ch)
+
+		case xmdb.EffectVolumeSlide:
+			if e.floatValue != 0 {
+				ch.volumeSlideValue = e.floatValue
+			}
 		}
 	}
 }
@@ -293,6 +301,12 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			ch.arpeggioNoteOffset = float64(e.arp[i])
 			ch.arpeggioRunning = i != 0
 			ch.arpeggioTicked = true
+
+		case xmdb.EffectVolumeSlide:
+			if s.tickIndex == 0 {
+				break
+			}
+			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
 		}
 	}
 }

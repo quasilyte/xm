@@ -66,9 +66,6 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 			return errors.New("multi-sample instruments are not supported yet")
 		}
 
-		// Convert 8-bit samples into signed 16-bit samples.
-		// Also note that sample.Data stores deltas while
-		// dstInst will store the absolute values.
 		sample := inst.Samples[0]
 
 		numSamples := len(sample.Data)
@@ -107,6 +104,9 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 				k++
 			}
 		} else {
+			// Convert 8-bit samples into signed 16-bit samples.
+			// Also note that sample.Data stores deltas while
+			// dstInst will store the absolute values.
 			v := int8(0)
 			for i, delta := range sample.Data {
 				v += int8(delta)
@@ -170,7 +170,7 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				}
 
 				period := linearPeriod(calcRealNote(rawNote.Note, inst))
-				if inst == nil && (rawNote.Note == 0 || rawNote.Note == 97) {
+				if inst == nil || (rawNote.Note == 0 || rawNote.Note == 97) {
 					period = 0
 				}
 
@@ -180,7 +180,10 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				}
 				e2 := xmdb.EffectFromVolumeByte(rawNote.Volume)
 				e3 := xmdb.ConvertEffect(rawNote)
-				ek := c.internEffect(e1, e2, e3)
+				ek, err := c.compileEffect(e1, e2, e3)
+				if err != nil {
+					return err
+				}
 
 				n = patternNote{
 					period: period,
@@ -195,14 +198,14 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 	return nil
 }
 
-func (c *moduleCompiler) internEffect(e1, e2, e3 xmdb.Effect) effectKey {
+func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error) {
 	hash := (uint64(e1.AsUint16()) << (0 * 16)) | (uint64(e2.AsUint16()) << (1 * 16)) | (uint64(e3.AsUint16()) << (2 * 16))
 	if hash == 0 {
-		return effectKey(0)
+		return effectKey(0), nil
 	}
 	if k, ok := c.effectSet[hash]; ok {
 		// This effects combination is already interned.
-		return k
+		return k, nil
 	}
 
 	index := len(c.result.effectTab)
@@ -247,6 +250,18 @@ func (c *moduleCompiler) internEffect(e1, e2, e3 xmdb.Effect) effectKey {
 			// TODO: depending on the tracker-style, use XY or YX order?
 			// For now, use Fasttracker II convention with YX.
 			compiled.arp[1], compiled.arp[2] = compiled.arp[2], compiled.arp[1]
+
+		case xmdb.EffectVolumeSlide:
+			slideUp := e.Arg >> 4
+			slideDown := e.Arg & 0b1111
+			if slideUp > 0 && slideDown > 0 {
+				return effectKey(0), errors.New("volume slide uses both up & down (XY) values")
+			}
+			if slideUp > 0 {
+				compiled.floatValue = float64(slideUp) / 64
+			} else {
+				compiled.floatValue = -(float64(slideDown) / 64)
+			}
 		}
 
 		c.result.effectTab = append(c.result.effectTab, compiled)
@@ -255,5 +270,5 @@ func (c *moduleCompiler) internEffect(e1, e2, e3 xmdb.Effect) effectKey {
 
 	k := makeEffectKey(uint(index), uint(realLength))
 	c.effectSet[hash] = k
-	return k
+	return k, nil
 }

@@ -22,6 +22,10 @@ const (
 	// Arg: volume level
 	EffectSetVolume
 
+	// Encoding: effect=0x0A
+	// Arg: slide up/down speed
+	EffectVolumeSlide
+
 	// Encoding: effect=0x14 [or] key-off note
 	// Arg: tick number (always a first tick for key-off note)
 	EffectKeyOff
@@ -35,6 +39,10 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 		if n.EffectParameter != 0 {
 			e.Op = EffectArpeggio
 		}
+
+	case 0x0A:
+		e.Op = EffectVolumeSlide
+
 	case 0x14:
 		e.Op = EffectKeyOff
 	}
