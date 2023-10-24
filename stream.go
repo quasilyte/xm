@@ -295,6 +295,16 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 				ch.volumeSlideValue = e.floatValue
 			}
 
+		case xmdb.EffectPortamentoUp:
+			if e.floatValue != 0 {
+				ch.portamentoUpValue = e.floatValue
+			}
+
+		case xmdb.EffectPortamentoDown:
+			if e.floatValue != 0 {
+				ch.portamentoDownValue = e.floatValue
+			}
+
 		case xmdb.EffectPatternBreak:
 			s.jumpKind = jumpPatternBreak
 			s.jumpPattern = s.patternIndex + 1
@@ -316,6 +326,19 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 
 	for _, e := range s.module.effectTab[offset : offset+numEffects] {
 		switch e.op {
+		case xmdb.EffectPortamentoUp:
+			if s.tickIndex == 0 {
+				break
+			}
+			// XM_MINPERIOD is defined as 50 in MilkyTracker.
+			ch.period = clampMin(ch.period-ch.portamentoUpValue, 50)
+
+		case xmdb.EffectPortamentoDown:
+			if s.tickIndex == 0 {
+				break
+			}
+			ch.period += ch.portamentoDownValue
+
 		case xmdb.EffectKeyOff:
 			if e.rawValue != uint8(s.tickIndex) {
 				break
@@ -365,10 +388,11 @@ func (s *Stream) readTick(b []byte) {
 			if inst == nil {
 				continue
 			}
-			if ch.sampleOffset > float64(len(inst.samples)) {
+			sampleOffset := int(ch.sampleOffset)
+			if sampleOffset >= len(inst.samples) {
 				continue
 			}
-			v := inst.samples[int(ch.sampleOffset)]
+			v := inst.samples[sampleOffset]
 
 			// 0.25 is an amplification heuristic to avoid clipping.
 			left += int16(0.25 * float64(v) * ch.computedVolume[0])
@@ -387,7 +411,7 @@ func (s *Stream) readTick(b []byte) {
 					ch.sampleOffset -= ch.sampleStep
 					if ch.sampleOffset <= inst.loopStart {
 						ch.reverse = false
-						ch.sampleOffset = float64(int(inst.loopStart) + (int(ch.sampleOffset) % int(inst.loopLength)))
+						ch.sampleOffset = abs(float64(int(inst.loopStart) + (int(ch.sampleOffset) % int(inst.loopLength))))
 					}
 				} else {
 					ch.sampleOffset += ch.sampleStep

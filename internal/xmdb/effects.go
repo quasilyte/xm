@@ -18,6 +18,14 @@ const (
 	// Arg: semitone offsets
 	EffectArpeggio
 
+	// Encoding: effect=0x01
+	// Arg: portamento speed
+	EffectPortamentoUp
+
+	// Encoding: effect=0x02
+	// Arg: portamento speed
+	EffectPortamentoDown
+
 	// Encoding: effect=0x0C [or] volume byte
 	// Arg: volume level
 	EffectSetVolume
@@ -48,6 +56,12 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 			e.Op = EffectArpeggio
 		}
 
+	case 0x01:
+		e.Op = EffectPortamentoUp
+
+	case 0x02:
+		e.Op = EffectPortamentoDown
+
 	case 0x0A:
 		e.Op = EffectVolumeSlide
 
@@ -75,6 +89,7 @@ func EffectFromVolumeByte(v uint8) Effect {
 	case v >= 0x60 && v <= 0x6f:
 		e.Op = EffectVolumeSlideDown
 		e.Arg = v & 0x0F
+
 	case v >= 0x70 && v <= 0x7f:
 		e.Op = EffectVolumeSlideUp
 		e.Arg = v & 0x0F

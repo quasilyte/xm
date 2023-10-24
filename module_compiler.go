@@ -263,6 +263,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 		case xmdb.EffectVolumeSlideUp, xmdb.EffectVolumeSlideDown:
 			compiled.floatValue = float64(e.Arg) / 64
 
+		case xmdb.EffectPortamentoUp, xmdb.EffectPortamentoDown:
+			compiled.floatValue = float64(e.Arg) * 4
+
 		case xmdb.EffectVolumeSlide:
 			slideUp := e.Arg >> 4
 			slideDown := e.Arg & 0b1111

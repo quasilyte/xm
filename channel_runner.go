@@ -18,7 +18,9 @@ type streamChannel struct {
 	arpeggioRunning    bool
 	arpeggioNoteOffset float64
 
-	volumeSlideValue float64
+	volumeSlideValue    float64
+	portamentoUpValue   float64
+	portamentoDownValue float64
 
 	// Ping-pong loop state.
 	reverse bool

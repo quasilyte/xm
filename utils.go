@@ -28,6 +28,13 @@ func clamp(v, min, max float64) float64 {
 	return v
 }
 
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 func calcRealNote(note uint8, inst *instrument) float64 {
 	fnote := float64(note)
 	var frelativeNote float64
