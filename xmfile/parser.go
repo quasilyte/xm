@@ -351,8 +351,6 @@ func (p *parser) parseInstrument() Instrument {
 
 	inst.VolumeFadeout = int(p.readWord("volume fadeout"))
 
-	p.skip(22, "reserved")
-
 	if p.offset > offset {
 		panic(p.errorf("consumed %d extra bytes", p.offset-offset))
 	}

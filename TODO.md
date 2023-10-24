@@ -14,6 +14,7 @@ Features:
 
 Effects:
 - 0x0D pattern break
+- 3xx portamento to notes
 
 Bugs:
 - vr_befo.xm results in an error (consumed 9271 extra bytes of the pattern data)
