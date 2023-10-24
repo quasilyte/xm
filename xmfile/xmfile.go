@@ -35,10 +35,16 @@ type Module struct {
 
 	Patterns []Pattern
 
+	// This pattern is generated only once and then used for every empty pattern in Patterns.
+	EmptyPattern Pattern
+
 	Instruments []Instrument
 }
 
 type Pattern struct {
+	// Whether this pattern is an auto-generated empty pattern.
+	IsEmpty bool
+
 	Rows []PatternRow
 }
 

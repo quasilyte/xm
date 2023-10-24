@@ -3,6 +3,7 @@ package xm
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/quasilyte/xm/internal/xmdb"
@@ -62,88 +63,96 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 		if len(inst.Samples) == 0 {
 			continue
 		}
-		if len(inst.Samples) != 1 {
-			return errors.New("multi-sample instruments are not supported yet")
+		dstInst, err := c.compileInstrument(m, inst)
+		if err != nil {
+			return fmt.Errorf("instrument[%d (%02X)]: %w", i, i, err)
 		}
-
-		sample := inst.Samples[0]
-
-		numSamples := len(sample.Data)
-		if sample.Is16bits() {
-			numSamples /= 2
-		}
-		dstSamples := make([]int16, numSamples)
-
-		loopEnd := sample.LoopStart + sample.LoopLength - 1
-		loopStart := sample.LoopStart
-		loopLength := sample.LoopLength
-		if sample.LoopStart > sample.Length {
-			loopStart = loopLength
-		}
-		if loopEnd > sample.Length {
-			loopEnd = sample.Length - 1
-		}
-		loopLength = loopEnd - loopStart
-		if sample.LoopType() == xmfile.SampleLoopForward {
-			if loopStart > loopEnd {
-				return errors.New("sample loopStart > loopEnd")
-			}
-		}
-
-		if sample.Is16bits() {
-			loopEnd /= 2
-			loopStart /= 2
-			loopLength /= 2
-
-			v := int16(0)
-			k := 0
-			for i := 0; i < len(sample.Data); i += 2 {
-				u := binary.LittleEndian.Uint16(sample.Data[i:])
-				v += int16(u)
-				dstSamples[k] = v
-				k++
-			}
-		} else {
-			// Convert 8-bit samples into signed 16-bit samples.
-			// Also note that sample.Data stores deltas while
-			// dstInst will store the absolute values.
-			v := int8(0)
-			for i, delta := range sample.Data {
-				v += int8(delta)
-				dstSamples[i] = int16((int(v) << 8))
-			}
-		}
-
-		dstInst := instrument{
-			samples: dstSamples,
-
-			finetune:     int8(sample.Finetune),
-			relativeNote: int8(sample.RelativeNote),
-
-			volume: float64(sample.Volume) / 0x40,
-
-			volumeFlags:  inst.VolumeFlags,
-			panningFlags: inst.PanningFlags,
-
-			volumeFadeoutStep: float64(inst.VolumeFadeout) / 32768,
-
-			loopType:   sample.LoopType(),
-			loopLength: float64(loopLength),
-			loopStart:  float64(loopStart),
-			loopEnd:    float64(loopEnd),
-		}
-
-		switch dstInst.loopType {
-		case xmfile.SampleLoopForward, xmfile.SampleLoopNone, xmfile.SampleLoopPingPong:
-			// OK
-		default:
-			return errors.New("unknown sample loop type")
-		}
-
 		c.result.instruments[i] = dstInst
 	}
 
 	return nil
+}
+
+func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrument) (instrument, error) {
+	if len(inst.Samples) != 1 {
+		return instrument{}, fmt.Errorf("multi-sample instruments are not supported yet (found %d)", len(inst.Samples))
+	}
+
+	sample := inst.Samples[0]
+
+	numSamples := len(sample.Data)
+	if sample.Is16bits() {
+		numSamples /= 2
+	}
+	dstSamples := make([]int16, numSamples)
+
+	loopEnd := sample.LoopStart + sample.LoopLength - 1
+	loopStart := sample.LoopStart
+	loopLength := sample.LoopLength
+	if sample.LoopStart > sample.Length {
+		loopStart = loopLength
+	}
+	if loopEnd > sample.Length {
+		loopEnd = sample.Length - 1
+	}
+	loopLength = loopEnd - loopStart
+	if sample.LoopType() == xmfile.SampleLoopForward {
+		if loopStart > loopEnd {
+			return instrument{}, errors.New("sample loopStart > loopEnd")
+		}
+	}
+
+	if sample.Is16bits() {
+		loopEnd /= 2
+		loopStart /= 2
+		loopLength /= 2
+
+		v := int16(0)
+		k := 0
+		for i := 0; i < len(sample.Data); i += 2 {
+			u := binary.LittleEndian.Uint16(sample.Data[i:])
+			v += int16(u)
+			dstSamples[k] = v
+			k++
+		}
+	} else {
+		// Convert 8-bit samples into signed 16-bit samples.
+		// Also note that sample.Data stores deltas while
+		// dstInst will store the absolute values.
+		v := int8(0)
+		for i, delta := range sample.Data {
+			v += int8(delta)
+			dstSamples[i] = int16((int(v) << 8))
+		}
+	}
+
+	dstInst := instrument{
+		samples: dstSamples,
+
+		finetune:     int8(sample.Finetune),
+		relativeNote: int8(sample.RelativeNote),
+
+		volume: float64(sample.Volume) / 0x40,
+
+		volumeFlags:  inst.VolumeFlags,
+		panningFlags: inst.PanningFlags,
+
+		volumeFadeoutStep: float64(inst.VolumeFadeout) / 32768,
+
+		loopType:   sample.LoopType(),
+		loopLength: float64(loopLength),
+		loopStart:  float64(loopStart),
+		loopEnd:    float64(loopEnd),
+	}
+
+	switch dstInst.loopType {
+	case xmfile.SampleLoopForward, xmfile.SampleLoopNone, xmfile.SampleLoopPingPong:
+		// OK
+	default:
+		return dstInst, errors.New("unknown sample loop type")
+	}
+
+	return dstInst, nil
 }
 
 func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {

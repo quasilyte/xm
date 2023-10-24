@@ -235,47 +235,67 @@ func (p *parser) parsePattern() Pattern {
 	// Skip is usually 0, but the specs says we should respect the stated header size.
 	p.skip(int(9-patternHeaderLength), "skip pattern metadata")
 
-	pat.Rows = make([]PatternRow, numRows)
-
-	for i := range pat.Rows {
-		pat.Rows[i].Notes = make([]PatternNote, p.module.NumChannels)
-		for j := 0; j < p.module.NumChannels; j++ {
-			var note PatternNote
-			b := p.readByte("first note byte")
-			readNote := true
-			readInstrument := true
-			readVolume := true
-			readEffectType := true
-			readEffectParameter := true
-			if b&0b10000000 != 0 {
-				// When MSB is set, an alternative (compact) scheme is used for this note.
-				// Some bytes may be missing (they default to 0).
-				readNote = b&(1<<0) != 0
-				readInstrument = b&(1<<1) != 0
-				readVolume = b&(1<<2) != 0
-				readEffectType = b&(1<<3) != 0
-				readEffectParameter = b&(1<<4) != 0
-			} else {
-				// The first byte was a note.
-				readNote = false
-				note.Note = b
+	if packedPatternDataSize == 0 {
+		if p.module.EmptyPattern.Rows == nil {
+			// Generate a Standard Empty pattern.
+			numRows = 64
+			pat.IsEmpty = true
+			pat.Rows = make([]PatternRow, numRows)
+			// Every byte is expected to be 0x80 (0b1000_0000).
+			// This results in MSB set, but no "read_x" bits make
+			// every note be 0.
+			// Therefore, we fill it with completely empty notes.
+			for i := range pat.Rows {
+				// Notes are zero values already, no extra loop is needed.
+				pat.Rows[i].Notes = make([]PatternNote, p.module.NumChannels)
 			}
-			if readNote {
-				note.Note = p.readByte("pattern note")
+			p.module.EmptyPattern = pat
+		}
+		pat = p.module.EmptyPattern
+	} else {
+		// TODO: read until all (number of rows)*(number of channels) are consumed?
+		// The docs claim that numRows may be imprecise in some XM files.
+		pat.Rows = make([]PatternRow, numRows)
+		for i := range pat.Rows {
+			pat.Rows[i].Notes = make([]PatternNote, p.module.NumChannels)
+			for j := 0; j < p.module.NumChannels; j++ {
+				var note PatternNote
+				b := p.readByte("first note byte")
+				readNote := true
+				readInstrument := true
+				readVolume := true
+				readEffectType := true
+				readEffectParameter := true
+				if b&0b10000000 != 0 {
+					// When MSB is set, an alternative (compact) scheme is used for this note.
+					// Some bytes may be missing (they default to 0).
+					readNote = b&(1<<0) != 0
+					readInstrument = b&(1<<1) != 0
+					readVolume = b&(1<<2) != 0
+					readEffectType = b&(1<<3) != 0
+					readEffectParameter = b&(1<<4) != 0
+				} else {
+					// The first byte was a note.
+					readNote = false
+					note.Note = b
+				}
+				if readNote {
+					note.Note = p.readByte("pattern note")
+				}
+				if readInstrument {
+					note.Instrument = p.readByte("pattern instrument")
+				}
+				if readVolume {
+					note.Volume = p.readByte("pattern volume")
+				}
+				if readEffectType {
+					note.EffectType = p.readByte("effect type")
+				}
+				if readEffectParameter {
+					note.EffectParameter = p.readByte("effect type parameter")
+				}
+				pat.Rows[i].Notes[j] = note
 			}
-			if readInstrument {
-				note.Instrument = p.readByte("pattern instrument")
-			}
-			if readVolume {
-				note.Volume = p.readByte("pattern volume")
-			}
-			if readEffectType {
-				note.EffectType = p.readByte("effect type")
-			}
-			if readEffectParameter {
-				note.EffectParameter = p.readByte("effect type parameter")
-			}
-			pat.Rows[i].Notes[j] = note
 		}
 	}
 
