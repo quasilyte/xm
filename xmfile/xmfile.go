@@ -64,8 +64,8 @@ type Instrument struct {
 	Name string
 
 	KeymapAssignments []byte
-	EnvelopeVolume    []Point
-	EnvelopePanning   []Point
+	EnvelopeVolume    []EnvelopePoint
+	EnvelopePanning   []EnvelopePoint
 
 	VolumeSustainPoint    uint8
 	VolumeLoopStartPoint  uint8
@@ -87,7 +87,7 @@ type Instrument struct {
 	Samples []InstrumentSample
 }
 
-type Point struct {
+type EnvelopePoint struct {
 	X uint16
 	Y uint16
 }
@@ -124,7 +124,7 @@ func (s *InstrumentSample) Is16bits() bool {
 	return (s.TypeFlags & (1 << 4)) != 0
 }
 
-type EnvelopeFlags int
+type EnvelopeFlags uint8
 
 func (f EnvelopeFlags) IsOn() bool {
 	return f&(1<<0) != 0

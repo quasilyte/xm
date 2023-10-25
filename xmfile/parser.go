@@ -336,17 +336,17 @@ func (p *parser) parseInstrument() Instrument {
 	}
 	inst.KeymapAssignments = p.read(96, "instrument samples keymap assignments")
 
-	inst.EnvelopeVolume = make([]Point, 12)
+	inst.EnvelopeVolume = make([]EnvelopePoint, 12)
 	for i := range inst.EnvelopeVolume {
 		x := uint16(p.readWord("envelope volume point x"))
 		y := uint16(p.readWord("envelope volume point y"))
-		inst.EnvelopeVolume[i] = Point{X: x, Y: y}
+		inst.EnvelopeVolume[i] = EnvelopePoint{X: x, Y: y}
 	}
-	inst.EnvelopePanning = make([]Point, 12)
+	inst.EnvelopePanning = make([]EnvelopePoint, 12)
 	for i := range inst.EnvelopePanning {
 		x := uint16(p.readWord("envelope panning point x"))
 		y := uint16(p.readWord("envelope panning point y"))
-		inst.EnvelopePanning[i] = Point{X: x, Y: y}
+		inst.EnvelopePanning[i] = EnvelopePoint{X: x, Y: y}
 	}
 
 	numVolumePoints := p.readByte("number of volume points")

@@ -202,14 +202,16 @@ func (s *Stream) nextTick() {
 	s.rowTicksRemain--
 	s.tickIndex++
 
-	panning := 0.5
 	for j := range s.channels {
 		ch := &s.channels[j]
 
-		s.envelopeTick(ch)
+		s.tickEnvelopes(ch)
 
-		ch.computedVolume[0] = s.volumeScaling * ch.volume * ch.fadeoutVolume * math.Sqrt(1.0-panning)
-		ch.computedVolume[1] = s.volumeScaling * ch.volume * ch.fadeoutVolume * math.Sqrt(panning)
+		panning := ch.panning + (ch.panningEnvelope.value-0.5)*(0.5-abs(ch.panning-0.5))*2
+
+		volume := s.volumeScaling * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
+		ch.computedVolume[0] = volume * math.Sqrt(1.0-panning)
+		ch.computedVolume[1] = volume * math.Sqrt(panning)
 
 		ch.arpeggioTicked = false
 		if !ch.effect.IsEmpty() {
@@ -226,15 +228,46 @@ func (s *Stream) nextTick() {
 	}
 }
 
-func (s *Stream) envelopeTick(ch *streamChannel) {
+func (s *Stream) tickEnvelopes(ch *streamChannel) {
 	if ch.inst == nil {
 		return
 	}
 
-	if ch.inst.volumeFlags.IsOn() {
+	if ch.volumeEnvelope.flags.IsOn() {
 		if !ch.keyOn {
 			ch.fadeoutVolume = clampMin(ch.fadeoutVolume-ch.inst.volumeFadeoutStep, 0)
 		}
+		s.envelopeTick(ch, &ch.volumeEnvelope)
+	}
+
+	if ch.panningEnvelope.flags.IsOn() {
+		s.envelopeTick(ch, &ch.panningEnvelope)
+	}
+}
+
+func (s *Stream) envelopeTick(ch *streamChannel, e *envelopeRunner) {
+	if len(e.points) < 2 {
+		panic("unimplemented")
+	}
+
+	if e.flags.LoopEnabled() {
+		if e.frame >= e.loopEndFrame {
+			e.frame -= e.loopLength
+		}
+	}
+
+	i := 0
+	for i < len(e.points)-2 {
+		if e.points[i].frame <= e.frame && e.points[i+1].frame >= e.frame {
+			break
+		}
+		i++
+	}
+
+	e.value = envelopeLerp(e.points[i], e.points[i+1], e.frame) * (1.0 / 64.0)
+
+	if !ch.keyOn || !e.flags.SustainEnabled() || e.frame != e.sustainFrame {
+		e.frame++
 	}
 }
 
@@ -279,8 +312,15 @@ func (s *Stream) nextRow() {
 			ch.effect = n.effect
 			ch.volume = n.inst.volume
 			ch.inst = n.inst
+			ch.panning = n.inst.panning
 			ch.keyOn = true
 			ch.fadeoutVolume = 1
+			ch.volumeEnvelope.value = 1
+			ch.volumeEnvelope.frame = 0
+			ch.volumeEnvelope.envelope = n.inst.volumeEnvelope
+			ch.panningEnvelope.value = 0.5
+			ch.panningEnvelope.frame = 0
+			ch.panningEnvelope.envelope = n.inst.panningEnvelope
 		}
 
 		if !ch.effect.IsEmpty() {
@@ -337,7 +377,7 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 
 func (s *Stream) keyOff(ch *streamChannel) {
 	ch.keyOn = false
-	if ch.inst == nil || !ch.inst.volumeFlags.IsOn() {
+	if ch.inst == nil || !ch.volumeEnvelope.flags.IsOn() {
 		ch.volume = 0
 	}
 }

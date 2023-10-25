@@ -53,10 +53,11 @@ type instrument struct {
 	finetune     int8
 	relativeNote int8
 
-	volume float64
+	volume  float64
+	panning float64
 
-	volumeFlags  xmfile.EnvelopeFlags
-	panningFlags xmfile.EnvelopeFlags
+	volumeEnvelope  envelope
+	panningEnvelope envelope
 
 	volumeFadeoutStep float64
 
@@ -64,6 +65,24 @@ type instrument struct {
 	loopLength float64
 	loopStart  float64
 	loopEnd    float64
+}
+
+type envelope struct {
+	flags          xmfile.EnvelopeFlags
+	sustainPoint   uint8
+	loopEndPoint   uint8
+	loopStartPoint uint8
+
+	sustainFrame int
+	loopEndFrame int
+	loopLength   int
+
+	points []envelopePoint
+}
+
+type envelopePoint struct {
+	frame int
+	value float64
 }
 
 type effectKey uint16

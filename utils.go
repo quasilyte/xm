@@ -4,21 +4,25 @@ import (
 	"math"
 )
 
-func clampMin(v, min float64) float64 {
+type numeric interface {
+	uint8 | int | float64
+}
+
+func clampMin[T numeric](v, min T) T {
 	if v < min {
 		return min
 	}
 	return v
 }
 
-func clampMax(v, max float64) float64 {
+func clampMax[T numeric](v, max T) T {
 	if v > max {
 		return max
 	}
 	return v
 }
 
-func clamp(v, min, max float64) float64 {
+func clamp[T numeric](v, min, max T) T {
 	if v < min {
 		return min
 	}
@@ -62,4 +66,15 @@ func linearPeriod(note float64) float64 {
 
 func linearFrequency(period float64) float64 {
 	return 8363.0 * math.Pow(2, (4608-period)/768)
+}
+
+func envelopeLerp(a, b envelopePoint, frame int) float64 {
+	if frame <= a.frame {
+		return a.value
+	}
+	if frame >= b.frame {
+		return b.value
+	}
+	p := float64(frame-a.frame) / float64(b.frame-a.frame)
+	return a.value*(1-p) + b.value*p
 }

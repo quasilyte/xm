@@ -118,16 +118,22 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 		}
 	}
 
+	volumeEnvelope := c.compileEnvelope(inst.EnvelopeVolume, inst.VolumeFlags,
+		inst.VolumeSustainPoint, inst.VolumeLoopStartPoint, inst.VolumeLoopEndPoint)
+	panningEnvelope := c.compileEnvelope(inst.EnvelopePanning, inst.PanningFlags,
+		inst.PanningSustainPoint, inst.PanningLoopStartPoint, inst.PanningLoopEndPoint)
+
 	dstInst := instrument{
 		samples: dstSamples,
 
 		finetune:     int8(sample.Finetune),
 		relativeNote: int8(sample.RelativeNote),
 
-		volume: float64(sample.Volume) / 0x40,
+		volume:  float64(sample.Volume) / 64,
+		panning: float64(sample.Panning) / 256,
 
-		volumeFlags:  inst.VolumeFlags,
-		panningFlags: inst.PanningFlags,
+		volumeEnvelope:  volumeEnvelope,
+		panningEnvelope: panningEnvelope,
 
 		volumeFadeoutStep: float64(inst.VolumeFadeout) / 32768,
 
@@ -145,6 +151,34 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 	}
 
 	return dstInst, nil
+}
+
+func (c *moduleCompiler) compileEnvelope(points []xmfile.EnvelopePoint, flags xmfile.EnvelopeFlags, sustain, start, end uint8) envelope {
+	e := envelope{
+		flags:          flags,
+		sustainPoint:   sustain,
+		loopEndPoint:   end,
+		loopStartPoint: start,
+	}
+
+	if len(points) > 0 {
+		e.loopStartPoint = clampMax(e.loopStartPoint, uint8(len(points))-1)
+		e.loopEndPoint = clampMax(e.loopEndPoint, uint8(len(points))-1)
+		e.points = make([]envelopePoint, len(points))
+		for i, p := range points {
+			e.points[i] = envelopePoint{
+				frame: int(p.X),
+				value: float64(p.Y),
+			}
+		}
+
+		e.sustainFrame = int(points[e.sustainPoint].X)
+		e.loopEndFrame = int(points[e.loopEndPoint].X)
+		loopStartFrame := int(points[e.loopStartPoint].X)
+		e.loopLength = e.loopEndFrame - loopStartFrame
+	}
+
+	return e
 }
 
 func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {

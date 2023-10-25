@@ -8,6 +8,8 @@ type streamChannel struct {
 	effect     effectKey
 	keyOn      bool
 
+	panning float64
+
 	sampleOffset   float64
 	volume         float64
 	fadeoutVolume  float64
@@ -24,4 +26,14 @@ type streamChannel struct {
 
 	// Ping-pong loop state.
 	reverse bool
+
+	volumeEnvelope  envelopeRunner
+	panningEnvelope envelopeRunner
+}
+
+type envelopeRunner struct {
+	envelope
+
+	value float64
+	frame int
 }
