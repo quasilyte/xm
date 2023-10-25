@@ -350,8 +350,15 @@ func (p *parser) parseInstrument() Instrument {
 	}
 
 	numVolumePoints := p.readByte("number of volume points")
+	if numVolumePoints > 12 {
+		numVolumePoints = 12
+	}
 	inst.EnvelopeVolume = inst.EnvelopeVolume[:numVolumePoints]
+
 	numPanningPoints := p.readByte("number of panning points")
+	if numPanningPoints > 12 {
+		numPanningPoints = 12
+	}
 	inst.EnvelopePanning = inst.EnvelopePanning[:numPanningPoints]
 
 	inst.VolumeSustainPoint = p.readByte("volume sustain point")
