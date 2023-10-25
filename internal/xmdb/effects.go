@@ -65,6 +65,9 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 	case 0x0A:
 		e.Op = EffectVolumeSlide
 
+	case 0x0C:
+		e.Op = EffectSetVolume
+
 	case 0x0D:
 		e.Op = EffectPatternBreak
 
