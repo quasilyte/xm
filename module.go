@@ -13,9 +13,11 @@ type module struct {
 
 	effectTab []noteEffect
 
-	sampleRate     float64
-	bpm            float64
-	ticksPerRow    float64
+	sampleRate  float64
+	bpm         float64
+	ticksPerRow int
+
+	// These values store the defaults for the stream.
 	samplesPerTick float64
 	bytesPerTick   int
 }

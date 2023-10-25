@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/quasilyte/xm/internal/xmdb"
 	"github.com/quasilyte/xm/xmfile"
@@ -26,7 +25,7 @@ func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
 	c.result = module{
 		sampleRate:  float64(config.sampleRate),
 		bpm:         float64(config.bpm),
-		ticksPerRow: float64(config.tempo),
+		ticksPerRow: int(config.tempo),
 	}
 	err := c.compile(m)
 	return c.result, err
@@ -37,14 +36,7 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 		return errors.New("the Amiga frequency table is not supported yet")
 	}
 
-	c.result.samplesPerTick = math.Round(c.result.sampleRate / (c.result.bpm * 0.4))
-	{
-		const (
-			channels       = 2
-			bytesPerSample = 2
-		)
-		c.result.bytesPerTick = int(c.result.samplesPerTick) * channels * bytesPerSample
-	}
+	c.result.samplesPerTick, c.result.bytesPerTick = calcSamplesPerTick(c.result.sampleRate, c.result.bpm)
 
 	if err := c.compileInstruments(m); err != nil {
 		return err
@@ -175,7 +167,10 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				var n patternNote
 				var inst *instrument
 				if rawNote.Instrument != 0 {
-					inst = &c.result.instruments[rawNote.Instrument-1]
+					// TODO: what to do with overflowing instrument?
+					if int(rawNote.Instrument) < len(c.result.instruments) {
+						inst = &c.result.instruments[rawNote.Instrument-1]
+					}
 				}
 
 				period := linearPeriod(calcRealNote(rawNote.Note, inst))
@@ -280,6 +275,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 
 		case xmdb.EffectPatternBreak:
 			compiled.rawValue = (e.Arg>>4)*10 + (e.Arg & 0b1111)
+
+		case xmdb.EffectSetBPM:
+			compiled.floatValue = float64(e.Arg)
 		}
 
 		c.result.effectTab = append(c.result.effectTab, compiled)

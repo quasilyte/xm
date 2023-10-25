@@ -34,6 +34,14 @@ const (
 	EffectVolumeSlideDown
 	EffectVolumeSlideUp
 
+	// Encoding: effect=0x0F with arg>0x1F
+	// Arg: new BPM value
+	EffectSetBPM
+
+	// Encoding: effect=0x0F with arg<=0x1F
+	// Arg: new tempo (spd) value
+	EffectSetTempo
+
 	// Encoding: effect=0x0A
 	// Arg: slide up/down speed
 	EffectVolumeSlide
@@ -70,6 +78,16 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x0D:
 		e.Op = EffectPatternBreak
+
+	case 0x0F:
+		if n.EffectParameter == 0 {
+			break
+		}
+		if n.EffectParameter > 0x1F {
+			e.Op = EffectSetBPM
+		} else {
+			e.Op = EffectSetTempo
+		}
 
 	case 0x14:
 		e.Op = EffectKeyOff

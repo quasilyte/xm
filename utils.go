@@ -35,6 +35,16 @@ func abs(x float64) float64 {
 	return x
 }
 
+func calcSamplesPerTick(sampleRate, bpm float64) (samplesPerTick float64, bytesPerTick int) {
+	samplesPerTick = math.Round(sampleRate / (bpm * 0.4))
+	const (
+		channels       = 2
+		bytesPerSample = 2
+	)
+	bytesPerTick = int(samplesPerTick) * channels * bytesPerSample
+	return samplesPerTick, bytesPerTick
+}
+
 func calcRealNote(note uint8, inst *instrument) float64 {
 	fnote := float64(note)
 	var frelativeNote float64

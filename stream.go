@@ -26,6 +26,12 @@ type Stream struct {
 
 	volumeScaling float64
 
+	// These values can change during the playback.
+	bpm            float64
+	samplesPerTick float64
+	ticksPerRow    int // Also known as "tempo" and "spd"
+	bytesPerTick   int
+
 	channels []streamChannel
 }
 
@@ -172,6 +178,14 @@ func (s *Stream) Rewind() {
 	s.patternRowIndex = -1
 	s.rowTicksRemain = 0
 	s.tickIndex = -1
+
+	s.ticksPerRow = s.module.ticksPerRow
+	s.setBPM(s.module.bpm)
+}
+
+func (s *Stream) setBPM(bpm float64) {
+	s.bpm = bpm
+	s.samplesPerTick, s.bytesPerTick = calcSamplesPerTick(s.module.sampleRate, s.bpm)
 }
 
 func (s *Stream) GetInfo() StreamInfo {
@@ -242,8 +256,7 @@ func (s *Stream) nextRow() {
 
 	noteOffset := s.pattern.numChannels * s.patternRowIndex
 	notes := s.pattern.notes[noteOffset : noteOffset+s.pattern.numChannels]
-	s.rowTicksRemain = int(s.module.ticksPerRow)
-	s.tickIndex = -1
+
 	for i := range s.channels {
 		ch := &s.channels[i]
 		n := &notes[i]
@@ -274,6 +287,9 @@ func (s *Stream) nextRow() {
 			s.applyRowEffect(ch)
 		}
 	}
+
+	s.rowTicksRemain = s.ticksPerRow
+	s.tickIndex = -1
 }
 
 func (s *Stream) applyRowEffect(ch *streamChannel) {
@@ -309,6 +325,12 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 			s.jumpKind = jumpPatternBreak
 			s.jumpPattern = s.patternIndex + 1
 			s.jumpRow = int(e.rawValue)
+
+		case xmdb.EffectSetBPM:
+			s.setBPM(e.floatValue)
+
+		case xmdb.EffectSetTempo:
+			s.ticksPerRow = int(e.rawValue)
 		}
 	}
 }
