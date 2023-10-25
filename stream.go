@@ -232,7 +232,7 @@ func (s *Stream) envelopeTick(ch *streamChannel) {
 	}
 
 	if ch.inst.volumeFlags.IsOn() {
-		if !ch.sustain {
+		if !ch.keyOn {
 			ch.fadeoutVolume = clampMin(ch.fadeoutVolume-ch.inst.volumeFadeoutStep, 0)
 		}
 	}
@@ -279,7 +279,7 @@ func (s *Stream) nextRow() {
 			ch.effect = n.effect
 			ch.volume = n.inst.volume
 			ch.inst = n.inst
-			ch.sustain = true
+			ch.keyOn = true
 			ch.fadeoutVolume = 1
 		}
 
@@ -336,7 +336,7 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 }
 
 func (s *Stream) keyOff(ch *streamChannel) {
-	ch.sustain = false
+	ch.keyOn = false
 	if ch.inst == nil || !ch.inst.volumeFlags.IsOn() {
 		ch.volume = 0
 	}

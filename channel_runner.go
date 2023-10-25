@@ -6,7 +6,7 @@ type streamChannel struct {
 	period     float64
 	sampleStep float64
 	effect     effectKey
-	sustain    bool
+	keyOn      bool
 
 	sampleOffset   float64
 	volume         float64
