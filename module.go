@@ -49,6 +49,7 @@ const (
 	noteHasNotePortamento = 1 << iota
 	noteHasArpeggio
 	noteHasVibrato
+	noteValid
 )
 
 func (f patternNoteFlags) Contains(v patternNoteFlags) bool {

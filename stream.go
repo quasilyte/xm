@@ -365,53 +365,7 @@ func (s *Stream) nextRow() bool {
 }
 
 func (s *Stream) advanceChannelRow(ch *streamChannel, n *patternNote) {
-	// Some sensible row states:
-	//
-	//	[note] [instrument]
-	//	no     no           keep playing the current note (if any)
-	//	no     yes          "ghost instrument" (keeps the sample offset)
-	//	yes    no           "ghost note" (keeps the volume)
-	//	yes    yes          normal note play
-	//
-	// In practice, it's more complicated due to various effects
-	// that may affect the logical consistency.
-
-	ch.note = n
-	ch.effect = n.effect
-	ch.vibratoPeriodOffset = 0
-
-	inst := n.inst
-
-	hasNotePortamento := n.flags.Contains(noteHasNotePortamento)
-	if hasNotePortamento && inst == nil {
-		inst = ch.inst
-	}
-
-	if n.period != 0 {
-		ch.keyOn = true
-		ch.resetEnvelopes()
-	}
-
-	if inst == nil {
-		if n.period != 0 {
-			ch.period = n.period
-		}
-		if ch.inst != nil && ch.sampleOffset >= float64(len(ch.inst.samples)) {
-			ch.inst = nil
-		}
-	} else {
-		// Start playing next note.
-		if n.period != 0 && !hasNotePortamento {
-			ch.sampleOffset = 0
-			ch.reverse = false
-			ch.period = n.period
-		}
-		ch.volumeEnvelope.envelope = inst.volumeEnvelope
-		ch.panningEnvelope.envelope = inst.panningEnvelope
-		ch.volume = inst.volume
-		ch.inst = inst
-		ch.panning = inst.panning
-	}
+	ch.assignNote(n)
 
 	if !ch.effect.IsEmpty() {
 		s.applyRowEffect(ch, n)

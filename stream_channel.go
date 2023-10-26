@@ -57,6 +57,58 @@ func (ch *streamChannel) resetEnvelopes() {
 	ch.panningEnvelope.frame = 0
 }
 
+func (ch *streamChannel) assignNote(n *patternNote) {
+	// Some sensible row note states:
+	//
+	//	[note] [instrument]
+	//	no     no           keep playing the current note (if any)
+	//	no     yes          "ghost instrument" (keeps the sample offset)
+	//	yes    no           "ghost note" (keeps the volume)
+	//	yes    yes          normal note play
+	//
+	// In practice, it's more complicated due to various effects
+	// that may affect the logical consistency.
+
+	ch.note = n
+	ch.effect = n.effect
+	ch.vibratoPeriodOffset = 0
+
+	if n.inst == nil && !n.flags.Contains(noteValid) {
+		// An empty note: do nothing.
+		return
+	}
+
+	inst := n.inst
+
+	hasNotePortamento := n.flags.Contains(noteHasNotePortamento)
+	if hasNotePortamento && inst == nil {
+		inst = ch.inst
+	}
+
+	if n.period != 0 {
+		ch.keyOn = true
+		ch.resetEnvelopes()
+	}
+
+	if inst == nil {
+		if n.period != 0 {
+			ch.period = n.period
+		}
+	} else {
+		// Start playing next note.
+		if n.period != 0 && !hasNotePortamento {
+			ch.sampleOffset = 0
+			ch.reverse = false
+			ch.period = n.period
+		}
+		ch.volumeEnvelope.envelope = inst.volumeEnvelope
+		ch.panningEnvelope.envelope = inst.panningEnvelope
+		ch.volume = inst.volume
+		ch.inst = inst
+		ch.panning = inst.panning
+	}
+}
+
 type envelopeRunner struct {
 	envelope
 

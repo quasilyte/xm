@@ -246,6 +246,9 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 					inst:   inst,
 					effect: ek,
 				}
+				if rawNote.Note > 0 && rawNote.Note < 97 {
+					n.flags |= noteValid
+				}
 				pat.notes = append(pat.notes, n)
 			}
 		}
