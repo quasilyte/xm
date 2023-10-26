@@ -39,6 +39,22 @@ type streamChannel struct {
 
 	volumeEnvelope  envelopeRunner
 	panningEnvelope envelopeRunner
+
+	// This ID is needed mostly for debugging,
+	// therefore we put it to the object's tail.
+	id int
+}
+
+func (ch *streamChannel) Reset() {
+	*ch = streamChannel{}
+}
+
+func (ch *streamChannel) resetEnvelopes() {
+	ch.fadeoutVolume = 1
+	ch.volumeEnvelope.value = 1
+	ch.volumeEnvelope.frame = 0
+	ch.panningEnvelope.value = 0.5
+	ch.panningEnvelope.frame = 0
 }
 
 type envelopeRunner struct {

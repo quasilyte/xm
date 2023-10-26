@@ -222,6 +222,12 @@ func (s *Stream) Rewind() {
 	// Now initialize the player to the "ready to start" state.
 	// This code is used as a final part of the constructor as well.
 
+	for i := range s.channels {
+		ch := &s.channels[i]
+		ch.Reset()
+		ch.id = i
+	}
+
 	s.patternIndex = -1
 	s.patternRowsRemain = 0
 	s.patternRowIndex = -1
@@ -359,6 +365,17 @@ func (s *Stream) nextRow() bool {
 }
 
 func (s *Stream) advanceChannelRow(ch *streamChannel, n *patternNote) {
+	// Some sensible row states:
+	//
+	//	[note] [instrument]
+	//	no     no           keep playing the current note (if any)
+	//	no     yes          "ghost instrument" (keeps the sample offset)
+	//	yes    no           "ghost note" (keeps the volume)
+	//	yes    yes          normal note play
+	//
+	// In practice, it's more complicated due to various effects
+	// that may affect the logical consistency.
+
 	ch.note = n
 	ch.effect = n.effect
 	ch.vibratoPeriodOffset = 0
@@ -372,13 +389,7 @@ func (s *Stream) advanceChannelRow(ch *streamChannel, n *patternNote) {
 
 	if n.period != 0 {
 		ch.keyOn = true
-
-		// Reset envelopes.
-		ch.fadeoutVolume = 1
-		ch.volumeEnvelope.value = 1
-		ch.volumeEnvelope.frame = 0
-		ch.panningEnvelope.value = 0.5
-		ch.panningEnvelope.frame = 0
+		ch.resetEnvelopes()
 	}
 
 	if inst == nil {
