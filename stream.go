@@ -415,10 +415,7 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 		case xmdb.EffectSetVolume:
 			ch.volume = e.floatValue
 
-		case xmdb.EffectKeyOff:
-			if e.rawValue != 0 {
-				break
-			}
+		case xmdb.EffectEarlyKeyOff:
 			s.keyOff(ch)
 
 		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide:

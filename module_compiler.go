@@ -230,7 +230,7 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 
 				e1 := xmdb.Effect{}
 				if rawNote.Note == 97 {
-					e1.Op = xmdb.EffectKeyOff
+					e1.Op = xmdb.EffectEarlyKeyOff
 				}
 				e2 := xmdb.EffectFromVolumeByte(rawNote.Volume)
 				e3 := xmdb.ConvertEffect(rawNote)

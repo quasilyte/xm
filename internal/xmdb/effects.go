@@ -69,8 +69,12 @@ const (
 	// Arg: target row number (on the next pattern)
 	EffectPatternBreak
 
-	// Encoding: effect=0x14 [or] key-off note
-	// Arg: tick number (always a first tick for key-off note)
+	// Encoding: key-off note (97)
+	// Note: it's always the first effect in the list
+	EffectEarlyKeyOff
+
+	// Encoding: effect=0x14
+	// Arg: tick number
 	EffectKeyOff
 )
 
