@@ -3,6 +3,7 @@ package xm
 import (
 	"encoding/binary"
 	"errors"
+	"io"
 	"math"
 
 	"github.com/quasilyte/xm/internal/xmdb"
@@ -159,16 +160,23 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 // When stream has no bytes to produce, io.EOF error is returned.
 func (s *Stream) Read(b []byte) (int, error) {
 	written := 0
+	eof := false
 
 	bytesPerTick := s.module.bytesPerTick
 	for len(b) > bytesPerTick {
-		s.nextTick()
+		if !s.nextTick() {
+			eof = true
+			break
+		}
 		s.readTick(b[:bytesPerTick])
 
 		written += bytesPerTick
 		b = b[bytesPerTick:]
 	}
 
+	if eof {
+		return written, io.EOF
+	}
 	return written, nil
 }
 
@@ -194,9 +202,11 @@ func (s *Stream) GetInfo() StreamInfo {
 	}
 }
 
-func (s *Stream) nextTick() {
+func (s *Stream) nextTick() bool {
 	if s.rowTicksRemain == 0 {
-		s.nextRow()
+		if !s.nextRow() {
+			return false
+		}
 	}
 
 	s.rowTicksRemain--
@@ -230,6 +240,8 @@ func (s *Stream) nextTick() {
 		freq := linearFrequency(ch.period - (64 * ch.arpeggioNoteOffset) - (16 * ch.vibratoPeriodOffset))
 		ch.sampleStep = freq / s.module.sampleRate
 	}
+
+	return true
 }
 
 func (s *Stream) tickEnvelopes(ch *streamChannel) {
@@ -275,11 +287,13 @@ func (s *Stream) envelopeTick(ch *streamChannel, e *envelopeRunner) {
 	}
 }
 
-func (s *Stream) nextRow() {
+func (s *Stream) nextRow() bool {
 	if s.jumpKind == jumpNone {
 		// Normal execution.
 		if s.patternRowsRemain == 0 {
-			s.nextPattern()
+			if !s.nextPattern() {
+				return false
+			}
 		}
 		s.patternRowIndex++
 		s.patternRowsRemain--
@@ -348,6 +362,7 @@ func (s *Stream) nextRow() {
 
 	s.rowTicksRemain = s.ticksPerRow
 	s.tickIndex = -1
+	return true
 }
 
 func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
@@ -499,8 +514,13 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 	}
 }
 
-func (s *Stream) nextPattern() {
-	s.selectPattern(s.patternIndex + 1)
+func (s *Stream) nextPattern() bool {
+	i := s.patternIndex + 1
+	if i >= len(s.module.patternOrder) {
+		return false
+	}
+	s.selectPattern(i)
+	return true
 }
 
 func (s *Stream) selectPattern(i int) {
