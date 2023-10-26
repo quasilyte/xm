@@ -5,12 +5,7 @@ Optimization:
 
 Features:
 - amiga frequency
-- panning
-- panning envelopes
-- volume envelopes
-
-Effects:
-- 3xx portamento to notes
+- instrument vibrato settings
 
 Bugs:
 - bronzed_girl.xm results in an error (unknown sample encoding scheme)
@@ -22,4 +17,3 @@ Corner-cases:
 Correctness:
 - tests (check the generated PCM bytes)
 - make rewind/reset/seek work properly
-- test streaming API (io.Reader) with Ebitengine audio players
