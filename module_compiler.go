@@ -356,6 +356,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 
 		case xmdb.EffectSetBPM:
 			compiled.floatValue = float64(e.Arg)
+
+		case xmdb.EffectNoteCut:
+			compiled.arp[0] = e.Arg & 0b1111
 		}
 
 		c.result.effectTab = append(c.result.effectTab, compiled)

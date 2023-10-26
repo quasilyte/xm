@@ -76,6 +76,10 @@ const (
 	// Encoding: effect=0x14
 	// Arg: tick number
 	EffectKeyOff
+
+	// Encoding: effect=0x0E and x=C
+	// Arg: tick number
+	EffectNoteCut
 )
 
 func ConvertEffect(n xmfile.PatternNote) Effect {
@@ -110,6 +114,12 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x0D:
 		e.Op = EffectPatternBreak
+
+	case 0x0E:
+		switch e.Arg >> 4 {
+		case 0x0C:
+			e.Op = EffectNoteCut
+		}
 
 	case 0x0F:
 		if n.EffectParameter == 0 {

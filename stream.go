@@ -491,6 +491,12 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			}
 			s.keyOff(ch)
 
+		case xmdb.EffectNoteCut:
+			if e.arp[0] != uint8(s.tickIndex) {
+				break
+			}
+			ch.volume = 0
+
 		case xmdb.EffectArpeggio:
 			i := s.tickIndex % 3
 			ch.arpeggioNoteOffset = float64(e.arp[i])
