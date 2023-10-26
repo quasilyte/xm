@@ -359,7 +359,7 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 			}
 			s.keyOff(ch)
 
-		case xmdb.EffectVolumeSlide:
+		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide:
 			if e.floatValue != 0 {
 				ch.volumeSlideValue = e.floatValue
 			}
@@ -413,6 +413,11 @@ func (s *Stream) keyOff(ch *streamChannel) {
 	}
 }
 
+func (s *Stream) vibrato(ch *streamChannel) {
+	ch.vibratoStep += ch.vibratoSpeed
+	ch.vibratoPeriodOffset = -2 * waveform(ch.vibratoStep) * ch.vibratoDepth
+}
+
 func (s *Stream) applyTickEffect(ch *streamChannel) {
 	numEffects := ch.effect.Len()
 	offset := ch.effect.Index()
@@ -449,8 +454,7 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 				break
 			}
 			ch.vibratoRunning = true
-			ch.vibratoStep += ch.vibratoSpeed
-			ch.vibratoPeriodOffset = -2 * waveform(ch.vibratoStep) * ch.vibratoDepth
+			s.vibrato(ch)
 
 		case xmdb.EffectKeyOff:
 			if e.rawValue != uint8(s.tickIndex) {
@@ -467,6 +471,14 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			if s.tickIndex == 0 {
 				break
 			}
+			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
+
+		case xmdb.EffectVibratoWithVolumeSlide:
+			if s.tickIndex == 0 {
+				break
+			}
+			ch.vibratoRunning = true
+			s.vibrato(ch)
 			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
 
 		case xmdb.EffectVolumeSlideDown:

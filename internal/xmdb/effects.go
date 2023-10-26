@@ -37,6 +37,10 @@ const (
 	// Arg: speed & depth
 	EffectVibrato
 
+	// Encoding: effect=0x06
+	// Arg: same as in EffectVolumeSlide
+	EffectVibratoWithVolumeSlide
+
 	// Encoding: effect=0x0C [or] volume byte
 	// Arg: volume level
 	EffectSetVolume
@@ -86,6 +90,9 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x04:
 		e.Op = EffectVibrato
+
+	case 0x06:
+		e.Op = EffectVibratoWithVolumeSlide
 
 	case 0x0A:
 		e.Op = EffectVolumeSlide
