@@ -212,9 +212,10 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				var n patternNote
 				var inst *instrument
 				if rawNote.Instrument != 0 {
+					i := int(rawNote.Instrument) - 1
 					// TODO: what to do with overflowing instrument?
-					if int(rawNote.Instrument) < len(c.result.instruments) {
-						inst = &c.result.instruments[rawNote.Instrument-1]
+					if i < len(c.result.instruments) {
+						inst = &c.result.instruments[i]
 					}
 				}
 
