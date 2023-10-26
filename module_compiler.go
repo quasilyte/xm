@@ -51,7 +51,8 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 		p := &c.result.patterns[i]
 		for j := range p.notes {
 			n := &p.notes[j]
-			n.flags = c.generateNoteFlags(n)
+			// Some flags could be already set, therefore we need to use |= assignment.
+			n.flags |= c.generateNoteFlags(n)
 		}
 	}
 
@@ -324,7 +325,7 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 			// For now, use Fasttracker II convention with YX.
 			compiled.arp[1], compiled.arp[2] = compiled.arp[2], compiled.arp[1]
 
-		case xmdb.EffectVolumeSlideUp, xmdb.EffectVolumeSlideDown:
+		case xmdb.EffectVolumeSlideUp, xmdb.EffectVolumeSlideDown, xmdb.EffectFineVolumeSlideUp, xmdb.EffectFineVolumeSlideDown:
 			compiled.floatValue = float64(e.Arg) / 64
 
 		case xmdb.EffectPortamentoUp, xmdb.EffectPortamentoDown, xmdb.EffectNotePortamento:

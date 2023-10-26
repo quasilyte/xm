@@ -297,7 +297,10 @@ func (s *Stream) nextRow() {
 	for i := range s.channels {
 		ch := &s.channels[i]
 		n := &notes[i]
+
 		ch.note = n
+		ch.effect = n.effect
+		ch.vibratoPeriodOffset = 0
 
 		inst := n.inst
 
@@ -306,8 +309,18 @@ func (s *Stream) nextRow() {
 			inst = ch.inst
 		}
 
+		if n.period != 0 {
+			ch.keyOn = true
+
+			// Reset envelopes.
+			ch.fadeoutVolume = 1
+			ch.volumeEnvelope.value = 1
+			ch.volumeEnvelope.frame = 0
+			ch.panningEnvelope.value = 0.5
+			ch.panningEnvelope.frame = 0
+		}
+
 		if inst == nil {
-			ch.effect = n.effect
 			if n.period != 0 {
 				ch.period = n.period
 			}
@@ -321,19 +334,11 @@ func (s *Stream) nextRow() {
 				ch.reverse = false
 				ch.period = n.period
 			}
-			ch.effect = n.effect
+			ch.volumeEnvelope.envelope = inst.volumeEnvelope
+			ch.panningEnvelope.envelope = inst.panningEnvelope
 			ch.volume = inst.volume
 			ch.inst = inst
 			ch.panning = inst.panning
-			ch.keyOn = true
-			ch.fadeoutVolume = 1
-			ch.volumeEnvelope.value = 1
-			ch.volumeEnvelope.frame = 0
-			ch.volumeEnvelope.envelope = inst.volumeEnvelope
-			ch.panningEnvelope.value = 0.5
-			ch.panningEnvelope.frame = 0
-			ch.panningEnvelope.envelope = inst.panningEnvelope
-			ch.vibratoPeriodOffset = 0
 		}
 
 		if !ch.effect.IsEmpty() {
@@ -402,6 +407,11 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 
 		case xmdb.EffectSetTempo:
 			s.ticksPerRow = int(e.rawValue)
+
+		case xmdb.EffectFineVolumeSlideDown:
+			ch.volume = clampMin(ch.volume-e.floatValue, 0)
+		case xmdb.EffectFineVolumeSlideUp:
+			ch.volume = clampMax(ch.volume+e.floatValue, 1)
 		}
 	}
 }

@@ -49,6 +49,10 @@ const (
 	EffectVolumeSlideDown
 	EffectVolumeSlideUp
 
+	// Encoding: part of the volume byte
+	EffectFineVolumeSlideDown
+	EffectFineVolumeSlideUp
+
 	// Encoding: effect=0x0F with arg>0x1F
 	// Arg: new BPM value
 	EffectSetBPM
@@ -140,6 +144,14 @@ func EffectFromVolumeByte(v uint8) Effect {
 
 	case v >= 0x70 && v <= 0x7f:
 		e.Op = EffectVolumeSlideUp
+		e.Arg = v & 0x0F
+
+	case v >= 0x80 && v <= 0x8f:
+		e.Op = EffectFineVolumeSlideDown
+		e.Arg = v & 0x0F
+
+	case v >= 0x90 && v <= 0x9f:
+		e.Op = EffectFineVolumeSlideUp
 		e.Arg = v & 0x0F
 
 	default:
