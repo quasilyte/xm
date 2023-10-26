@@ -37,8 +37,22 @@ type pattern struct {
 type patternNote struct {
 	inst   *instrument
 	period float64
+	raw    float64
+	flags  patternNoteFlags
 
 	effect effectKey // Can be empty, see effectKey.IsEmpty()
+}
+
+type patternNoteFlags uint64
+
+const (
+	noteHasNotePortamento = 1 << iota
+	noteHasArpeggio
+	noteHasVibrato
+)
+
+func (f patternNoteFlags) Contains(v patternNoteFlags) bool {
+	return f&v != 0
 }
 
 type noteEffect struct {

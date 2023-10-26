@@ -46,6 +46,15 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 		return err
 	}
 
+	// Not assign pattern note flags.
+	for i := range c.result.patterns {
+		p := &c.result.patterns[i]
+		for j := range p.notes {
+			n := &p.notes[j]
+			n.flags = c.generateNoteFlags(n)
+		}
+	}
+
 	return nil
 }
 
@@ -78,14 +87,14 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 	}
 	dstSamples := make([]int16, numSamples)
 
-	loopEnd := sample.LoopStart + sample.LoopLength - 1
+	loopEnd := sample.LoopStart + sample.LoopLength
 	loopStart := sample.LoopStart
 	loopLength := sample.LoopLength
 	if sample.LoopStart > sample.Length {
 		loopStart = loopLength
 	}
 	if loopEnd > sample.Length {
-		loopEnd = sample.Length - 1
+		loopEnd = sample.Length
 	}
 	loopLength = loopEnd - loopStart
 	if sample.LoopType() == xmfile.SampleLoopForward {
@@ -196,6 +205,7 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 		pat.numChannels = m.NumChannels
 		pat.numRows = len(rawPat.Rows)
 		pat.notes = make([]patternNote, 0, len(rawPat.Rows)*m.NumChannels)
+		var activeInst *instrument
 		for _, row := range rawPat.Rows {
 			for _, rawNote := range row.Notes {
 				var n patternNote
@@ -207,8 +217,13 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 					}
 				}
 
-				period := linearPeriod(calcRealNote(rawNote.Note, inst))
-				if inst == nil || (rawNote.Note == 0 || rawNote.Note == 97) {
+				if inst != nil {
+					activeInst = inst
+				}
+
+				fnote := float64(rawNote.Note)
+				period := linearPeriod(calcRealNote(fnote, activeInst))
+				if rawNote.Note == 0 || rawNote.Note == 97 {
 					period = 0
 				}
 
@@ -224,6 +239,7 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				}
 
 				n = patternNote{
+					raw:    fnote,
 					period: period,
 					inst:   inst,
 					effect: ek,
@@ -234,6 +250,25 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 	}
 
 	return nil
+}
+
+func (c *moduleCompiler) generateNoteFlags(n *patternNote) patternNoteFlags {
+	var flags patternNoteFlags
+
+	numEffects := n.effect.Len()
+	offset := n.effect.Index()
+	for _, e := range c.result.effectTab[offset : offset+numEffects] {
+		switch e.op {
+		case xmdb.EffectNotePortamento:
+			flags |= noteHasNotePortamento
+		case xmdb.EffectArpeggio:
+			flags |= noteHasArpeggio
+		case xmdb.EffectVibrato:
+			flags |= noteHasVibrato
+		}
+	}
+
+	return flags
 }
 
 func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error) {
@@ -292,8 +327,12 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 		case xmdb.EffectVolumeSlideUp, xmdb.EffectVolumeSlideDown:
 			compiled.floatValue = float64(e.Arg) / 64
 
-		case xmdb.EffectPortamentoUp, xmdb.EffectPortamentoDown:
+		case xmdb.EffectPortamentoUp, xmdb.EffectPortamentoDown, xmdb.EffectNotePortamento:
 			compiled.floatValue = float64(e.Arg) * 4
+
+		case xmdb.EffectVibrato:
+			compiled.arp[0] = e.Arg >> 4                       // speed
+			compiled.floatValue = float64(e.Arg&0b1111) / 0x0F // depth
 
 		case xmdb.EffectVolumeSlide:
 			slideUp := e.Arg >> 4
@@ -308,7 +347,7 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 			}
 
 		case xmdb.EffectPatternBreak:
-			compiled.rawValue = (e.Arg>>4)*10 + (e.Arg & 0b1111)
+			compiled.arp[0] = (e.Arg>>4)*10 + (e.Arg & 0b1111)
 
 		case xmdb.EffectSetBPM:
 			compiled.floatValue = float64(e.Arg)

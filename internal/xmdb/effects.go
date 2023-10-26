@@ -1,6 +1,8 @@
 package xmdb
 
 import (
+	"fmt"
+
 	"github.com/quasilyte/xm/xmfile"
 )
 
@@ -25,6 +27,15 @@ const (
 	// Encoding: effect=0x02
 	// Arg: portamento speed
 	EffectPortamentoDown
+
+	// Encoding: effect=0x03
+	// Arg: portamento speed
+	// Note: also known as portamento-to-none and tone portamento
+	EffectNotePortamento
+
+	// Encoding: effect=0x04
+	// Arg: speed & depth
+	EffectVibrato
 
 	// Encoding: effect=0x0C [or] volume byte
 	// Arg: volume level
@@ -70,6 +81,12 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 	case 0x02:
 		e.Op = EffectPortamentoDown
 
+	case 0x03:
+		e.Op = EffectNotePortamento
+
+	case 0x04:
+		e.Op = EffectVibrato
+
 	case 0x0A:
 		e.Op = EffectVolumeSlide
 
@@ -91,6 +108,9 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x14:
 		e.Op = EffectKeyOff
+
+	default:
+		fmt.Printf("unsupported effect: %02X\n", n.EffectType)
 	}
 
 	return e
@@ -114,6 +134,9 @@ func EffectFromVolumeByte(v uint8) Effect {
 	case v >= 0x70 && v <= 0x7f:
 		e.Op = EffectVolumeSlideUp
 		e.Arg = v & 0x0F
+
+	default:
+		fmt.Printf("unhandled volume column: %02X\n", v)
 	}
 
 	return e

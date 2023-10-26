@@ -8,6 +8,16 @@ type numeric interface {
 	uint8 | int | float64
 }
 
+func slideTowards[T numeric](v, goal, delta T) T {
+	if v > goal {
+		return clampMin(v-delta, goal)
+	}
+	if v < goal {
+		return clampMax(v+delta, goal)
+	}
+	return v
+}
+
 func clampMin[T numeric](v, min T) T {
 	if v < min {
 		return min
@@ -49,8 +59,11 @@ func calcSamplesPerTick(sampleRate, bpm float64) (samplesPerTick float64, bytesP
 	return samplesPerTick, bytesPerTick
 }
 
-func calcRealNote(note uint8, inst *instrument) float64 {
-	fnote := float64(note)
+func waveform(step uint8) float64 {
+	return -math.Sin(2 * 3.141592 * float64(step) / 0x40)
+}
+
+func calcRealNote(fnote float64, inst *instrument) float64 {
 	var frelativeNote float64
 	var ffinetune float64
 	if inst != nil {

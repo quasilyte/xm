@@ -204,6 +204,7 @@ func (s *Stream) nextTick() {
 
 	for j := range s.channels {
 		ch := &s.channels[j]
+		note := ch.note
 
 		s.tickEnvelopes(ch)
 
@@ -213,17 +214,20 @@ func (s *Stream) nextTick() {
 		ch.computedVolume[0] = volume * math.Sqrt(1.0-panning)
 		ch.computedVolume[1] = volume * math.Sqrt(panning)
 
-		ch.arpeggioTicked = false
 		if !ch.effect.IsEmpty() {
 			s.applyTickEffect(ch)
 		}
 
-		if ch.arpeggioRunning && !ch.arpeggioTicked {
+		if ch.arpeggioRunning && !note.flags.Contains(noteHasArpeggio) {
 			ch.arpeggioRunning = false
 			ch.arpeggioNoteOffset = 0
 		}
+		if ch.vibratoRunning && !note.flags.Contains(noteHasVibrato) {
+			ch.vibratoRunning = false
+			ch.vibratoPeriodOffset = 0
+		}
 
-		freq := linearFrequency(ch.period - 64*ch.arpeggioNoteOffset)
+		freq := linearFrequency(ch.period - (64 * ch.arpeggioNoteOffset) - (16 * ch.vibratoPeriodOffset))
 		ch.sampleStep = freq / s.module.sampleRate
 	}
 }
@@ -293,8 +297,16 @@ func (s *Stream) nextRow() {
 	for i := range s.channels {
 		ch := &s.channels[i]
 		n := &notes[i]
+		ch.note = n
 
-		if n.inst == nil {
+		inst := n.inst
+
+		hasNotePortamento := n.flags.Contains(noteHasNotePortamento)
+		if hasNotePortamento && inst == nil {
+			inst = ch.inst
+		}
+
+		if inst == nil {
 			ch.effect = n.effect
 			if n.period != 0 {
 				ch.period = n.period
@@ -304,27 +316,28 @@ func (s *Stream) nextRow() {
 			}
 		} else {
 			// Start playing next note.
-			if n.period != 0 {
-				ch.sampleOffset = 0 // TODO: loopStart for loops?
+			if n.period != 0 && !hasNotePortamento {
+				ch.sampleOffset = 0
 				ch.reverse = false
 				ch.period = n.period
 			}
 			ch.effect = n.effect
-			ch.volume = n.inst.volume
-			ch.inst = n.inst
-			ch.panning = n.inst.panning
+			ch.volume = inst.volume
+			ch.inst = inst
+			ch.panning = inst.panning
 			ch.keyOn = true
 			ch.fadeoutVolume = 1
 			ch.volumeEnvelope.value = 1
 			ch.volumeEnvelope.frame = 0
-			ch.volumeEnvelope.envelope = n.inst.volumeEnvelope
+			ch.volumeEnvelope.envelope = inst.volumeEnvelope
 			ch.panningEnvelope.value = 0.5
 			ch.panningEnvelope.frame = 0
-			ch.panningEnvelope.envelope = n.inst.panningEnvelope
+			ch.panningEnvelope.envelope = inst.panningEnvelope
+			ch.vibratoPeriodOffset = 0
 		}
 
 		if !ch.effect.IsEmpty() {
-			s.applyRowEffect(ch)
+			s.applyRowEffect(ch, n)
 		}
 	}
 
@@ -332,7 +345,7 @@ func (s *Stream) nextRow() {
 	s.tickIndex = -1
 }
 
-func (s *Stream) applyRowEffect(ch *streamChannel) {
+func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 	numEffects := ch.effect.Len()
 	offset := ch.effect.Index()
 	for _, e := range s.module.effectTab[offset : offset+numEffects] {
@@ -361,10 +374,28 @@ func (s *Stream) applyRowEffect(ch *streamChannel) {
 				ch.portamentoDownValue = e.floatValue
 			}
 
+		case xmdb.EffectNotePortamento:
+			if n.raw == 0 {
+				break
+			}
+			if e.floatValue != 0 {
+				ch.notePortamentoValue = e.floatValue
+			}
+			// TODO: can we precalculate this period in the compiler, somehow?
+			ch.notePortamentoTargetPeriod = linearPeriod(calcRealNote(n.raw, ch.inst))
+
+		case xmdb.EffectVibrato:
+			if e.arp[0] != 0 {
+				ch.vibratoSpeed = e.arp[0]
+			}
+			if e.floatValue != 0 {
+				ch.vibratoDepth = e.floatValue
+			}
+
 		case xmdb.EffectPatternBreak:
 			s.jumpKind = jumpPatternBreak
 			s.jumpPattern = s.patternIndex + 1
-			s.jumpRow = int(e.rawValue)
+			s.jumpRow = int(e.arp[0])
 
 		case xmdb.EffectSetBPM:
 			s.setBPM(e.floatValue)
@@ -401,6 +432,26 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			}
 			ch.period += ch.portamentoDownValue
 
+		case xmdb.EffectNotePortamento:
+			if s.tickIndex == 0 {
+				break
+			}
+			if ch.notePortamentoTargetPeriod == 0 {
+				break
+			}
+			if ch.period == ch.notePortamentoTargetPeriod {
+				break
+			}
+			ch.period = slideTowards(ch.period, ch.notePortamentoTargetPeriod, ch.notePortamentoValue)
+
+		case xmdb.EffectVibrato:
+			if s.tickIndex == 0 {
+				break
+			}
+			ch.vibratoRunning = true
+			ch.vibratoStep += ch.vibratoSpeed
+			ch.vibratoPeriodOffset = -2 * waveform(ch.vibratoStep) * ch.vibratoDepth
+
 		case xmdb.EffectKeyOff:
 			if e.rawValue != uint8(s.tickIndex) {
 				break
@@ -411,7 +462,6 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			i := s.tickIndex % 3
 			ch.arpeggioNoteOffset = float64(e.arp[i])
 			ch.arpeggioRunning = i != 0
-			ch.arpeggioTicked = true
 
 		case xmdb.EffectVolumeSlide:
 			if s.tickIndex == 0 {
@@ -465,9 +515,12 @@ func (s *Stream) readTick(b []byte) {
 				ch.sampleOffset += ch.sampleStep
 			case xmfile.SampleLoopForward:
 				ch.sampleOffset += ch.sampleStep
-				for ch.sampleOffset >= inst.loopEnd {
-					ch.sampleOffset -= inst.loopLength
+				if ch.sampleOffset >= inst.loopEnd {
+					for ch.sampleOffset >= inst.loopEnd {
+						ch.sampleOffset -= inst.loopLength
+					}
 				}
+
 			case xmfile.SampleLoopPingPong:
 				if ch.reverse {
 					ch.sampleOffset -= ch.sampleStep
