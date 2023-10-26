@@ -16,4 +16,3 @@ Corner-cases:
 
 Correctness:
 - tests (check the generated PCM bytes)
-- make rewind/reset/seek work properly
