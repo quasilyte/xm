@@ -25,15 +25,20 @@ type Stream struct {
 	jumpPattern int
 	jumpRow     int
 
-	volumeScaling float64
+	settings streamSettings
 
 	// These values can change during the playback.
 	bpm            float64
 	samplesPerTick float64
 	ticksPerRow    int // Also known as "tempo" and "spd"
 	bytesPerTick   int
+	bytePos        int // Used to report the current pos via Seek()
 
 	channels []streamChannel
+}
+
+type streamSettings struct {
+	volumeScaling float64
 }
 
 type jumpKind uint8
@@ -90,7 +95,9 @@ type LoadModuleConfig struct {
 // Use LoadModule method to finish player initialization.
 func NewStream() *Stream {
 	return &Stream{
-		volumeScaling: 0.8,
+		settings: streamSettings{
+			volumeScaling: 0.8,
+		},
 	}
 }
 
@@ -98,25 +105,11 @@ func NewStream() *Stream {
 // The default value is 0.8; a value of 0 disables the sound.
 // The value is clamped in [0, 1].
 func (s *Stream) SetVolume(v float64) {
-	s.volumeScaling = clamp(v, 0, 1)
+	s.settings.volumeScaling = clamp(v, 0, 1)
 }
 
 func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
-	if config.SampleRate == 0 {
-		config.SampleRate = 44100
-	}
-	if config.BPM == 0 {
-		config.BPM = uint(m.DefaultBPM)
-		if config.BPM == 0 {
-			config.BPM = 120
-		}
-	}
-	if config.Tempo == 0 {
-		config.Tempo = uint(m.DefaultTempo)
-		if config.Tempo == 0 {
-			config.Tempo = 6
-		}
-	}
+	s.applyConfigDefaults(m, &config)
 
 	if config.SampleRate != 44100 {
 		return errors.New("unsupported sample rate (only 44100 is supported)")
@@ -140,6 +133,41 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 	s.Rewind()
 
 	return nil
+}
+
+func (s *Stream) applyConfigDefaults(m *xmfile.Module, config *LoadModuleConfig) {
+	if config.SampleRate == 0 {
+		config.SampleRate = 44100
+	}
+	if config.BPM == 0 {
+		config.BPM = uint(m.DefaultBPM)
+		if config.BPM == 0 {
+			config.BPM = 120
+		}
+	}
+	if config.Tempo == 0 {
+		config.Tempo = uint(m.DefaultTempo)
+		if config.Tempo == 0 {
+			config.Tempo = 6
+		}
+	}
+}
+
+func (s *Stream) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		if offset == 0 {
+			s.Rewind()
+			return 0, nil
+		}
+
+	case io.SeekCurrent:
+		if offset == 0 {
+			return int64(s.bytePos), nil
+		}
+	}
+
+	return 0, errors.New("unsupported Seek call")
 }
 
 // Read puts next PCM bytes into provided slice.
@@ -174,6 +202,8 @@ func (s *Stream) Read(b []byte) (int, error) {
 		b = b[bytesPerTick:]
 	}
 
+	s.bytePos += written
+
 	if eof {
 		return written, io.EOF
 	}
@@ -181,6 +211,17 @@ func (s *Stream) Read(b []byte) (int, error) {
 }
 
 func (s *Stream) Rewind() {
+	// Make all fields zero-initialized just to be safe.
+	// Copying the module object is redundant, but oh well (it's a shallow copy anyway).
+	*s = Stream{
+		module:   s.module,
+		channels: s.channels,
+		settings: s.settings,
+	}
+
+	// Now initialize the player to the "ready to start" state.
+	// This code is used as a final part of the constructor as well.
+
 	s.patternIndex = -1
 	s.patternRowsRemain = 0
 	s.patternRowIndex = -1
@@ -220,7 +261,7 @@ func (s *Stream) nextTick() bool {
 
 		panning := ch.panning + (ch.panningEnvelope.value-0.5)*(0.5-abs(ch.panning-0.5))*2
 
-		volume := s.volumeScaling * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
+		volume := s.settings.volumeScaling * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
 		ch.computedVolume[0] = volume * math.Sqrt(1.0-panning)
 		ch.computedVolume[1] = volume * math.Sqrt(panning)
 
