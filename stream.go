@@ -350,60 +350,61 @@ func (s *Stream) nextRow() bool {
 	notes := s.pattern.notes[noteOffset : noteOffset+s.pattern.numChannels]
 
 	for i := range s.channels {
-		ch := &s.channels[i]
-		n := &notes[i]
-
-		ch.note = n
-		ch.effect = n.effect
-		ch.vibratoPeriodOffset = 0
-
-		inst := n.inst
-
-		hasNotePortamento := n.flags.Contains(noteHasNotePortamento)
-		if hasNotePortamento && inst == nil {
-			inst = ch.inst
-		}
-
-		if n.period != 0 {
-			ch.keyOn = true
-
-			// Reset envelopes.
-			ch.fadeoutVolume = 1
-			ch.volumeEnvelope.value = 1
-			ch.volumeEnvelope.frame = 0
-			ch.panningEnvelope.value = 0.5
-			ch.panningEnvelope.frame = 0
-		}
-
-		if inst == nil {
-			if n.period != 0 {
-				ch.period = n.period
-			}
-			if ch.inst != nil && ch.sampleOffset >= float64(len(ch.inst.samples)) {
-				ch.inst = nil
-			}
-		} else {
-			// Start playing next note.
-			if n.period != 0 && !hasNotePortamento {
-				ch.sampleOffset = 0
-				ch.reverse = false
-				ch.period = n.period
-			}
-			ch.volumeEnvelope.envelope = inst.volumeEnvelope
-			ch.panningEnvelope.envelope = inst.panningEnvelope
-			ch.volume = inst.volume
-			ch.inst = inst
-			ch.panning = inst.panning
-		}
-
-		if !ch.effect.IsEmpty() {
-			s.applyRowEffect(ch, n)
-		}
+		s.advanceChannelRow(&s.channels[i], &notes[i])
 	}
 
 	s.rowTicksRemain = s.ticksPerRow
 	s.tickIndex = -1
 	return true
+}
+
+func (s *Stream) advanceChannelRow(ch *streamChannel, n *patternNote) {
+	ch.note = n
+	ch.effect = n.effect
+	ch.vibratoPeriodOffset = 0
+
+	inst := n.inst
+
+	hasNotePortamento := n.flags.Contains(noteHasNotePortamento)
+	if hasNotePortamento && inst == nil {
+		inst = ch.inst
+	}
+
+	if n.period != 0 {
+		ch.keyOn = true
+
+		// Reset envelopes.
+		ch.fadeoutVolume = 1
+		ch.volumeEnvelope.value = 1
+		ch.volumeEnvelope.frame = 0
+		ch.panningEnvelope.value = 0.5
+		ch.panningEnvelope.frame = 0
+	}
+
+	if inst == nil {
+		if n.period != 0 {
+			ch.period = n.period
+		}
+		if ch.inst != nil && ch.sampleOffset >= float64(len(ch.inst.samples)) {
+			ch.inst = nil
+		}
+	} else {
+		// Start playing next note.
+		if n.period != 0 && !hasNotePortamento {
+			ch.sampleOffset = 0
+			ch.reverse = false
+			ch.period = n.period
+		}
+		ch.volumeEnvelope.envelope = inst.volumeEnvelope
+		ch.panningEnvelope.envelope = inst.panningEnvelope
+		ch.volume = inst.volume
+		ch.inst = inst
+		ch.panning = inst.panning
+	}
+
+	if !ch.effect.IsEmpty() {
+		s.applyRowEffect(ch, n)
+	}
 }
 
 func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
