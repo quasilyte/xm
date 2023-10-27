@@ -80,6 +80,10 @@ const (
 	// Encoding: effect=0x0E and x=C
 	// Arg: tick number
 	EffectNoteCut
+
+	// Encoding: effect=0x08 [or] volume byte
+	// Arg: panning position
+	EffectSetPanning
 )
 
 func ConvertEffect(n xmfile.PatternNote) Effect {
@@ -105,6 +109,9 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x06:
 		e.Op = EffectVibratoWithVolumeSlide
+
+	case 0x08:
+		e.Op = EffectSetPanning
 
 	case 0x0A:
 		e.Op = EffectVolumeSlide
@@ -152,21 +159,26 @@ func EffectFromVolumeByte(v uint8) Effect {
 		e.Op = EffectSetVolume
 		e.Arg = v - 0x10
 
-	case v >= 0x60 && v <= 0x6f:
+	case v >= 0x60 && v <= 0x6F:
 		e.Op = EffectVolumeSlideDown
 		e.Arg = v & 0x0F
 
-	case v >= 0x70 && v <= 0x7f:
+	case v >= 0x70 && v <= 0x7F:
 		e.Op = EffectVolumeSlideUp
 		e.Arg = v & 0x0F
 
-	case v >= 0x80 && v <= 0x8f:
+	case v >= 0x80 && v <= 0x8F:
 		e.Op = EffectFineVolumeSlideDown
 		e.Arg = v & 0x0F
 
-	case v >= 0x90 && v <= 0x9f:
+	case v >= 0x90 && v <= 0x9F:
 		e.Op = EffectFineVolumeSlideUp
 		e.Arg = v & 0x0F
+
+	case v >= 0xC0 && v <= 0xCF:
+		argBits := v & 0x0F
+		e.Op = EffectSetPanning
+		e.Arg = (argBits << 4) | argBits
 
 	default:
 		fmt.Printf("unhandled volume column: %02X\n", v)

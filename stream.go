@@ -431,6 +431,9 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 			ch.volume = clampMin(ch.volume-e.floatValue, 0)
 		case xmdb.EffectFineVolumeSlideUp:
 			ch.volume = clampMax(ch.volume+e.floatValue, 1)
+
+		case xmdb.EffectSetPanning:
+			ch.panning = e.floatValue
 		}
 	}
 }

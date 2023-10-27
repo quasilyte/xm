@@ -372,6 +372,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 		case xmdb.EffectPatternBreak:
 			compiled.arp[0] = (e.Arg>>4)*10 + (e.Arg & 0b1111)
 
+		case xmdb.EffectSetPanning:
+			compiled.floatValue = float64(e.Arg) / 255
+
 		case xmdb.EffectSetBPM:
 			compiled.floatValue = float64(e.Arg)
 
