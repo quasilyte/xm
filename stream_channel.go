@@ -71,7 +71,6 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 
 	ch.note = n
 	ch.effect = n.effect
-	ch.vibratoPeriodOffset = 0
 
 	if n.inst == nil && !n.flags.Contains(noteValid) {
 		// An empty note: do nothing.
@@ -85,6 +84,7 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 		inst = ch.inst
 	}
 
+	ch.vibratoPeriodOffset = 0
 	ch.keyOn = true
 	ch.resetEnvelopes()
 
