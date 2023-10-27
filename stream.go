@@ -578,13 +578,13 @@ func (s *Stream) readTick(b []byte) {
 					ch.sampleOffset -= ch.sampleStep
 					if ch.sampleOffset <= inst.loopStart {
 						ch.reverse = false
-						ch.sampleOffset = inst.loopStart + math.Mod(ch.sampleOffset, inst.loopLength)
+						ch.sampleOffset = abs((inst.loopStart * 2) - ch.sampleOffset)
 					}
 				} else {
 					ch.sampleOffset += ch.sampleStep
 					if ch.sampleOffset >= inst.loopEnd {
 						ch.reverse = true
-						ch.sampleOffset = inst.loopEnd - math.Mod(ch.sampleOffset, inst.loopLength)
+						ch.sampleOffset = abs((inst.loopEnd * 2) - ch.sampleOffset)
 					}
 				}
 			}
