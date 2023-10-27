@@ -43,6 +43,19 @@ type patternNote struct {
 	effect effectKey // Can be empty, see effectKey.IsEmpty()
 }
 
+func (n *patternNote) Kind() patternNoteKind {
+	return patternNoteKind(n.flags >> (64 - 2))
+}
+
+type patternNoteKind int
+
+const (
+	noteEmpty patternNoteKind = iota
+	noteGhostInstrument
+	noteGhost
+	noteNormal
+)
+
 type patternNoteFlags uint64
 
 const (

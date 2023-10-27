@@ -71,9 +71,9 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 
 	ch.note = n
 	ch.effect = n.effect
+	noteKind := n.Kind()
 
-	if n.inst == nil && !n.flags.Contains(noteValid) {
-		// An empty note: do nothing.
+	if noteKind == noteEmpty {
 		return
 	}
 

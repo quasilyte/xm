@@ -225,7 +225,8 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 
 				fnote := float64(rawNote.Note)
 				period := linearPeriod(calcRealNote(fnote, activeInst))
-				if rawNote.Note == 0 || rawNote.Note == 97 {
+				isValid := rawNote.Note > 0 && rawNote.Note < 97
+				if !isValid {
 					period = 0
 				}
 
@@ -246,9 +247,23 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 					inst:   inst,
 					effect: ek,
 				}
-				if rawNote.Note > 0 && rawNote.Note < 97 {
+				if isValid {
 					n.flags |= noteValid
 				}
+
+				var kind patternNoteKind
+				switch {
+				case rawNote.Note == 0 && rawNote.Instrument == 0:
+					kind = noteEmpty
+				case rawNote.Note == 0 && rawNote.Instrument > 0:
+					kind = noteGhostInstrument
+				case n.flags.Contains(noteValid) && rawNote.Instrument == 0:
+					kind = noteGhost
+				default:
+					kind = noteNormal
+				}
+				n.flags |= patternNoteFlags(kind) << (64 - 2)
+
 				pat.notes = append(pat.notes, n)
 			}
 		}
