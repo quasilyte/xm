@@ -53,6 +53,10 @@ const (
 	EffectFineVolumeSlideDown
 	EffectFineVolumeSlideUp
 
+	// Encoding: part of the volume byte
+	EffectPanningSlideLeft
+	EffectPanningSlideRight
+
 	// Encoding: effect=0x0F with arg>0x1F
 	// Arg: new BPM value
 	EffectSetBPM
@@ -80,6 +84,10 @@ const (
 	// Encoding: effect=0x0E and x=C
 	// Arg: tick number
 	EffectNoteCut
+
+	// Encoding: effect=0x19
+	// Arg: slide left/right speed
+	EffectPanningSlide
 
 	// Encoding: effect=0x08 [or] volume byte
 	// Arg: panning position
@@ -138,6 +146,9 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 			e.Op = EffectSetTempo
 		}
 
+	case 0x19:
+		e.Op = EffectPanningSlide
+
 	case 0x14:
 		e.Op = EffectKeyOff
 
@@ -179,6 +190,14 @@ func EffectFromVolumeByte(v uint8) Effect {
 		argBits := v & 0x0F
 		e.Op = EffectSetPanning
 		e.Arg = (argBits << 4) | argBits
+
+	case v >= 0xD0 && v <= 0xDF:
+		e.Op = EffectPanningSlideLeft
+		e.Arg = v & 0x0F
+
+	case v >= 0xE0 && v <= 0xEF:
+		e.Op = EffectPanningSlideRight
+		e.Arg = v & 0x0F
 
 	default:
 		fmt.Printf("unhandled volume column: %02X\n", v)

@@ -428,6 +428,21 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 
 		case xmdb.EffectNoteCut:
 			compiled.arp[0] = e.Arg & 0b1111
+
+		case xmdb.EffectPanningSlide:
+			slideRight := e.Arg >> 4
+			slideLeft := e.Arg & 0b1111
+			if slideRight > 0 && slideLeft > 0 {
+				return effectKey(0), errors.New("panning slide uses both right & left (XY) values")
+			}
+			if slideRight > 0 {
+				compiled.floatValue = float64(slideRight) / 255
+			} else {
+				compiled.floatValue = -(float64(slideLeft) / 255)
+			}
+
+		case xmdb.EffectPanningSlideLeft, xmdb.EffectPanningSlideRight:
+			compiled.floatValue = float64(e.Arg) / 255
 		}
 
 		c.result.effectTab = append(c.result.effectTab, compiled)

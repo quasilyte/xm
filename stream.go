@@ -389,6 +389,11 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 				ch.volumeSlideValue = e.floatValue
 			}
 
+		case xmdb.EffectPanningSlide:
+			if e.floatValue != 0 {
+				ch.panningSlideValue = e.floatValue
+			}
+
 		case xmdb.EffectPortamentoUp:
 			if e.floatValue != 0 {
 				ch.portamentoUpValue = e.floatValue
@@ -512,6 +517,12 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			}
 			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
 
+		case xmdb.EffectPanningSlide:
+			if s.tickIndex == 0 {
+				break
+			}
+			ch.panning = clamp(ch.panning+ch.panningSlideValue, 0, 1)
+
 		case xmdb.EffectVibratoWithVolumeSlide:
 			if s.tickIndex == 0 {
 				break
@@ -524,6 +535,11 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			ch.volume = clampMin(ch.volume-e.floatValue, 0)
 		case xmdb.EffectVolumeSlideUp:
 			ch.volume = clampMax(ch.volume+e.floatValue, 1)
+
+		case xmdb.EffectPanningSlideLeft:
+			ch.panning = clampMin(ch.panning-e.floatValue, 0)
+		case xmdb.EffectPanningSlideRight:
+			ch.panning = clampMax(ch.panning+e.floatValue, 1)
 		}
 	}
 }
