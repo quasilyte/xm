@@ -20,6 +20,10 @@ type parser struct {
 
 	noteSet map[uint64]uint16
 
+	scratchEnvelopePoints [24]EnvelopePoint
+
+	config ParserConfig
+
 	// These fields below are needed for better error reporting.
 	stage         string
 	stageIndex    int
@@ -114,6 +118,14 @@ func (p *parser) read(l int, what string) []byte {
 	copy(b, p.sliceData(l))
 	p.offset += l
 	return b
+}
+
+func (p *parser) readOptionalString(l int, what string) string {
+	if !p.config.NeedStrings {
+		p.skip(l, what)
+		return ""
+	}
+	return p.readString(l, what)
 }
 
 func (p *parser) readString(l int, what string) string {
@@ -345,7 +357,7 @@ func (p *parser) parseInstrument() Instrument {
 	}
 	offset := p.offset + int(instrumentHeaderSize)
 
-	inst.Name = p.readString(22, "instrument name")
+	inst.Name = p.readOptionalString(22, "instrument name")
 
 	p.skip(1, "instrument type")
 
@@ -364,13 +376,13 @@ func (p *parser) parseInstrument() Instrument {
 	}
 	inst.KeymapAssignments = p.read(96, "instrument samples keymap assignments")
 
-	inst.EnvelopeVolume = make([]EnvelopePoint, 12)
+	inst.EnvelopeVolume = p.scratchEnvelopePoints[:12]
 	for i := range inst.EnvelopeVolume {
 		x := uint16(p.readWord("envelope volume point x"))
 		y := uint16(p.readWord("envelope volume point y"))
 		inst.EnvelopeVolume[i] = EnvelopePoint{X: x, Y: y}
 	}
-	inst.EnvelopePanning = make([]EnvelopePoint, 12)
+	inst.EnvelopePanning = p.scratchEnvelopePoints[12:]
 	for i := range inst.EnvelopePanning {
 		x := uint16(p.readWord("envelope panning point x"))
 		y := uint16(p.readWord("envelope panning point y"))
@@ -381,13 +393,25 @@ func (p *parser) parseInstrument() Instrument {
 	if numVolumePoints > 12 {
 		numVolumePoints = 12
 	}
-	inst.EnvelopeVolume = inst.EnvelopeVolume[:numVolumePoints]
+	if numVolumePoints != 0 {
+		allocated := make([]EnvelopePoint, numVolumePoints)
+		copy(allocated, inst.EnvelopeVolume)
+		inst.EnvelopeVolume = allocated
+	} else {
+		inst.EnvelopeVolume = nil
+	}
 
 	numPanningPoints := p.readByte("number of panning points")
 	if numPanningPoints > 12 {
 		numPanningPoints = 12
 	}
-	inst.EnvelopePanning = inst.EnvelopePanning[:numPanningPoints]
+	if numPanningPoints != 0 {
+		allocated := make([]EnvelopePoint, numPanningPoints)
+		copy(allocated, inst.EnvelopePanning)
+		inst.EnvelopePanning = allocated
+	} else {
+		inst.EnvelopePanning = nil
+	}
 
 	inst.VolumeSustainPoint = p.readByte("volume sustain point")
 	inst.VolumeLoopStartPoint = p.readByte("volume loop start point")
@@ -457,7 +481,7 @@ func (p *parser) parseInstrumentSampleHeader(sample *InstrumentSample) {
 		panic(p.errorf("unknown sample encoding scheme (%#02x)", format))
 	}
 
-	sample.Name = p.readString(22, "sample name")
+	sample.Name = p.readOptionalString(22, "sample name")
 }
 
 func (p *parser) noteHash(n PatternNote) uint64 {

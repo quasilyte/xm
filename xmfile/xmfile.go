@@ -149,17 +149,26 @@ const (
 	SampleFormatADPCM
 )
 
+type ParserConfig struct {
+	NeedStrings bool
+}
+
+func ParseFromBytes(data []byte, config ParserConfig) (*Module, error) {
+	p := &parser{
+		data:    data,
+		noteSet: make(map[uint64]uint16, 512),
+		config:  config,
+	}
+	return p.Parse()
+}
+
 // Parse reads XM file data and decodes it into a module.
 //
 // A non-nil error is usually a *ParseError object.
-func Parse(r io.Reader) (*Module, error) {
+func Parse(r io.Reader, config ParserConfig) (*Module, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("read data: %w", err)
 	}
-	p := &parser{
-		data:    data,
-		noteSet: make(map[uint64]uint16, 512),
-	}
-	return p.Parse()
+	return ParseFromBytes(data, config)
 }

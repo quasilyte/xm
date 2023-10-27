@@ -15,6 +15,8 @@ type moduleCompiler struct {
 	effectSet map[uint64]effectKey
 
 	effectBuf []xmdb.Effect
+
+	samplePool []int16
 }
 
 func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
@@ -61,7 +63,36 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 	return nil
 }
 
+func (c *moduleCompiler) makeSampleBuf(l int) []int16 {
+	if len(c.samplePool) < l {
+		// Should ~never happen.
+		return make([]int16, l)
+	}
+	buf := c.samplePool[:l]
+	c.samplePool = c.samplePool[l:]
+	return buf
+}
+
 func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
+	combinedSampleSize := 0
+	for i, inst := range m.Instruments {
+		if len(inst.Samples) == 0 {
+			continue
+		}
+		if len(inst.Samples) != 1 {
+			err := fmt.Errorf("multi-sample instruments are not supported yet (found %d)", len(inst.Samples))
+			return fmt.Errorf("instrument[%d (%02X)]: %w", i, i, err)
+		}
+		sample := inst.Samples[0]
+		n := len(sample.Data)
+		if sample.Is16bits() {
+			n /= 2
+		}
+		combinedSampleSize += n
+	}
+	// This 1 allocation should be enough for all samples.
+	c.samplePool = make([]int16, combinedSampleSize)
+
 	c.result.instruments = make([]instrument, m.NumInstruments)
 	for i, inst := range m.Instruments {
 		if len(inst.Samples) == 0 {
@@ -78,17 +109,13 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 }
 
 func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrument) (instrument, error) {
-	if len(inst.Samples) != 1 {
-		return instrument{}, fmt.Errorf("multi-sample instruments are not supported yet (found %d)", len(inst.Samples))
-	}
-
 	sample := inst.Samples[0]
 
 	numSamples := len(sample.Data)
 	if sample.Is16bits() {
 		numSamples /= 2
 	}
-	dstSamples := make([]int16, numSamples)
+	dstSamples := c.makeSampleBuf(numSamples)
 
 	loopEnd := sample.LoopStart + sample.LoopLength
 	loopStart := sample.LoopStart
