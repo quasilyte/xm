@@ -92,6 +92,10 @@ const (
 	// Encoding: effect=0x08 [or] volume byte
 	// Arg: panning position
 	EffectSetPanning
+
+	// Encoding effect=0x09
+	// Arg: offset
+	EffectSampleOffset
 )
 
 func ConvertEffect(n xmfile.PatternNote) Effect {
@@ -120,6 +124,9 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x08:
 		e.Op = EffectSetPanning
+
+	case 0x09:
+		e.Op = EffectSampleOffset
 
 	case 0x0A:
 		e.Op = EffectVolumeSlide

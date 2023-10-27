@@ -95,6 +95,8 @@ type instrument struct {
 	loopLength float64
 	loopStart  float64
 	loopEnd    float64
+
+	sample16bit bool
 }
 
 type envelope struct {

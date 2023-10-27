@@ -440,6 +440,16 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 
 		case xmdb.EffectSetPanning:
 			ch.panning = e.floatValue
+
+		case xmdb.EffectSampleOffset:
+			if ch.inst == nil {
+				break
+			}
+			if ch.inst.sample16bit {
+				ch.sampleOffset = e.floatValue * 0.5
+			} else {
+				ch.sampleOffset = e.floatValue
+			}
 		}
 	}
 }

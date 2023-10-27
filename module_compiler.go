@@ -180,6 +180,8 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 		loopLength: float64(loopLength),
 		loopStart:  float64(loopStart),
 		loopEnd:    float64(loopEnd),
+
+		sample16bit: sample.Is16bits(),
 	}
 
 	switch dstInst.loopType {
@@ -443,6 +445,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 
 		case xmdb.EffectPanningSlideLeft, xmdb.EffectPanningSlideRight:
 			compiled.floatValue = float64(e.Arg) / 255
+
+		case xmdb.EffectSampleOffset:
+			compiled.floatValue = float64(e.Arg) * 256
 		}
 
 		c.result.effectTab = append(c.result.effectTab, compiled)
