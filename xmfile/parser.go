@@ -16,6 +16,10 @@ type parser struct {
 	// Module holds the results of XM parsing.
 	module Module
 
+	uint16pool []uint16
+
+	noteSet map[uint64]uint16
+
 	// These fields below are needed for better error reporting.
 	stage         string
 	stageIndex    int
@@ -38,6 +42,23 @@ func (p *parser) startStage(name string) {
 func (p *parser) startSubStage(name string) {
 	p.subStage = name
 	p.subStageIndex = -1
+}
+
+func (p *parser) makeUint16Slice(l int) []uint16 {
+	// Only small allocations go via this pool.
+	if l > 32 {
+		return make([]uint16, l)
+	}
+
+	if len(p.uint16pool) < l {
+		// Allocate a new pool.
+		const poolSize = 1024
+		p.uint16pool = make([]uint16, poolSize)
+	}
+
+	result := p.uint16pool[:l]
+	p.uint16pool = p.uint16pool[l:]
+	return result
 }
 
 func (p *parser) formatStage() string {
@@ -149,6 +170,11 @@ func (p *parser) parse() (err error) {
 }
 
 func (p *parser) parseModule() {
+	p.module.Notes = make([]PatternNote, 0, 512)
+
+	// Add an empty note (ID=0).
+	p.module.Notes = append(p.module.Notes, PatternNote{})
+
 	p.startStage("header")
 	p.parseHeader()
 
@@ -247,7 +273,7 @@ func (p *parser) parsePattern() Pattern {
 			// Therefore, we fill it with completely empty notes.
 			for i := range pat.Rows {
 				// Notes are zero values already, no extra loop is needed.
-				pat.Rows[i].Notes = make([]PatternNote, p.module.NumChannels)
+				pat.Rows[i].Notes = p.makeUint16Slice(p.module.NumChannels)
 			}
 			p.module.EmptyPattern = pat
 		}
@@ -257,7 +283,7 @@ func (p *parser) parsePattern() Pattern {
 		// The docs claim that numRows may be imprecise in some XM files.
 		pat.Rows = make([]PatternRow, numRows)
 		for i := range pat.Rows {
-			pat.Rows[i].Notes = make([]PatternNote, p.module.NumChannels)
+			pat.Rows[i].Notes = p.makeUint16Slice(p.module.NumChannels)
 			for j := 0; j < p.module.NumChannels; j++ {
 				var note PatternNote
 				b := p.readByte("first note byte")
@@ -294,7 +320,9 @@ func (p *parser) parsePattern() Pattern {
 				if readEffectParameter {
 					note.EffectParameter = p.readByte("effect type parameter")
 				}
-				pat.Rows[i].Notes[j] = note
+
+				id := p.internNote(note)
+				pat.Rows[i].Notes[j] = id
 			}
 		}
 	}
@@ -430,4 +458,26 @@ func (p *parser) parseInstrumentSampleHeader(sample *InstrumentSample) {
 	}
 
 	sample.Name = p.readString(22, "sample name")
+}
+
+func (p *parser) noteHash(n PatternNote) uint64 {
+	return (uint64(n.Note) << 0) |
+		(uint64(n.Instrument) << 8) |
+		(uint64(n.Volume) << 16) |
+		(uint64(n.EffectType) << 24) |
+		(uint64(n.EffectParameter) << 32)
+}
+
+func (p *parser) internNote(n PatternNote) uint16 {
+	hash := p.noteHash(n)
+	if id, ok := p.noteSet[hash]; ok {
+		return id
+	}
+
+	id := uint16(len(p.module.Notes))
+	n.ID = id
+	p.module.Notes = append(p.module.Notes, n)
+	p.noteSet[hash] = id
+
+	return id
 }

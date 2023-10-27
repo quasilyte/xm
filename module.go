@@ -12,6 +12,7 @@ type module struct {
 	patternOrder []*pattern
 
 	effectTab []noteEffect
+	noteTab   []patternNote
 
 	sampleRate  float64
 	bpm         float64
@@ -31,7 +32,7 @@ type moduleConfig struct {
 type pattern struct {
 	numChannels int
 	numRows     int
-	notes       []patternNote
+	notes       []uint16
 }
 
 type patternNote struct {
@@ -63,6 +64,7 @@ const (
 	noteHasArpeggio
 	noteHasVibrato
 	noteValid
+	noteInitialized
 )
 
 func (f patternNoteFlags) Contains(v patternNoteFlags) bool {

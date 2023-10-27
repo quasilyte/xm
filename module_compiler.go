@@ -19,7 +19,7 @@ type moduleCompiler struct {
 
 func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
 	c := &moduleCompiler{
-		effectSet: make(map[uint64]effectKey, 16),
+		effectSet: make(map[uint64]effectKey, 24),
 		effectBuf: make([]xmdb.Effect, 0, 4),
 	}
 	c.result = module{
@@ -27,6 +27,7 @@ func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
 		bpm:         float64(config.bpm),
 		ticksPerRow: int(config.tempo),
 		effectTab:   make([]noteEffect, 0, 24),
+		noteTab:     make([]patternNote, len(m.Notes)),
 	}
 	err := c.compile(m)
 	return c.result, err
@@ -51,7 +52,7 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 	for i := range c.result.patterns {
 		p := &c.result.patterns[i]
 		for j := range p.notes {
-			n := &p.notes[j]
+			n := &c.result.noteTab[p.notes[j]]
 			// Some flags could be already set, therefore we need to use |= assignment.
 			n.flags |= c.generateNoteFlags(n)
 		}
@@ -201,15 +202,29 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 		c.result.patternOrder[i] = &c.result.patterns[patternIndex]
 	}
 
+	numNotes := 0
+	for i := range m.Patterns {
+		numNotes += len(m.Patterns[i].Rows) * m.NumChannels
+	}
+
+	noteSlicePool := make([]uint16, numNotes)
+	noteSliceOffset := 0
+
 	for i := range m.Patterns {
 		rawPat := &m.Patterns[i]
 		pat := &c.result.patterns[i]
 		pat.numChannels = m.NumChannels
 		pat.numRows = len(rawPat.Rows)
-		pat.notes = make([]patternNote, 0, len(rawPat.Rows)*m.NumChannels)
+
+		numNotes := len(rawPat.Rows) * m.NumChannels
+		pat.notes = noteSlicePool[noteSliceOffset : noteSliceOffset+numNotes]
+		noteSliceOffset += numNotes
+
+		noteIndex := 0
 		var activeInst *instrument
 		for _, row := range rawPat.Rows {
-			for _, rawNote := range row.Notes {
+			for _, noteID := range row.Notes {
+				rawNote := m.Notes[noteID]
 				var n patternNote
 				var inst *instrument
 				if rawNote.Instrument != 0 {
@@ -225,10 +240,10 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				}
 
 				fnote := float64(rawNote.Note)
-				period := linearPeriod(calcRealNote(fnote, activeInst))
+				period := 0.0
 				isValid := rawNote.Note > 0 && rawNote.Note < 97
-				if !isValid {
-					period = 0
+				if isValid {
+					period = linearPeriod(calcRealNote(fnote, activeInst))
 				}
 
 				e1 := xmdb.Effect{}
@@ -268,7 +283,12 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				}
 				n.flags |= patternNoteFlags(kind) << (64 - 2)
 
-				pat.notes = append(pat.notes, n)
+				pat.notes[noteIndex] = noteID
+				if !c.result.noteTab[noteID].flags.Contains(noteInitialized) {
+					n.flags |= noteInitialized
+					c.result.noteTab[noteID] = n
+				}
+				noteIndex++
 			}
 		}
 	}

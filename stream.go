@@ -354,9 +354,10 @@ func (s *Stream) nextRow() bool {
 
 	noteOffset := s.pattern.numChannels * s.patternRowIndex
 	notes := s.pattern.notes[noteOffset : noteOffset+s.pattern.numChannels]
+	m := &s.module
 
 	for i := range s.channels {
-		s.advanceChannelRow(&s.channels[i], &notes[i])
+		s.advanceChannelRow(&s.channels[i], &m.noteTab[notes[i]])
 	}
 
 	s.rowTicksRemain = s.ticksPerRow

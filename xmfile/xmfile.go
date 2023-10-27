@@ -35,6 +35,8 @@ type Module struct {
 
 	Patterns []Pattern
 
+	Notes []PatternNote
+
 	// This pattern is generated only once and then used for every empty pattern in Patterns.
 	EmptyPattern Pattern
 
@@ -49,10 +51,12 @@ type Pattern struct {
 }
 
 type PatternRow struct {
-	Notes []PatternNote
+	Notes []uint16
 }
 
 type PatternNote struct {
+	ID uint16
+
 	Note            uint8
 	Instrument      uint8
 	Volume          uint8
@@ -153,6 +157,9 @@ func Parse(r io.Reader) (*Module, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read data: %w", err)
 	}
-	p := &parser{data: data}
+	p := &parser{
+		data:    data,
+		noteSet: make(map[uint64]uint16, 512),
+	}
 	return p.Parse()
 }
