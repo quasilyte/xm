@@ -20,10 +20,11 @@ type streamChannel struct {
 	arpeggioRunning    bool
 	arpeggioNoteOffset float64
 
-	panningSlideValue   float64
-	volumeSlideValue    float64
-	portamentoUpValue   float64
-	portamentoDownValue float64
+	panningSlideValue      float64
+	volumeSlideValue       float64
+	globalVolumeSlideValue float64
+	portamentoUpValue      float64
+	portamentoDownValue    float64
 
 	notePortamentoTargetPeriod float64
 	notePortamentoValue        float64

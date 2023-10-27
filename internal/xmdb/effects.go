@@ -41,9 +41,17 @@ const (
 	// Arg: same as in EffectVolumeSlide
 	EffectVibratoWithVolumeSlide
 
+	// Encoding: effect=0x0A
+	// Arg: slide up/down speed
+	EffectVolumeSlide
+
 	// Encoding: effect=0x0C [or] volume byte
 	// Arg: volume level
 	EffectSetVolume
+
+	// Encoding: effect=0x0D
+	// Arg: target row number (on the next pattern)
+	EffectPatternBreak
 
 	// Encoding: part of the volume byte
 	EffectVolumeSlideDown
@@ -65,13 +73,13 @@ const (
 	// Arg: new tempo (spd) value
 	EffectSetTempo
 
-	// Encoding: effect=0x0A
-	// Arg: slide up/down speed
-	EffectVolumeSlide
+	// Encoding: effect=0x10
+	// Arg: volume
+	EffectSetGlobalVolume
 
-	// Encoding: effect=0x0D
-	// Arg: target row number (on the next pattern)
-	EffectPatternBreak
+	// Encoding: effect=0x11
+	// Arg: volume
+	EffectGlobalVolumeSlide
 
 	// Encoding: key-off note (97)
 	// Note: it's always the first effect in the list
@@ -153,11 +161,17 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 			e.Op = EffectSetTempo
 		}
 
-	case 0x19:
-		e.Op = EffectPanningSlide
+	case 0x10:
+		e.Op = EffectSetGlobalVolume
+
+	case 0x11:
+		e.Op = EffectGlobalVolumeSlide
 
 	case 0x14:
 		e.Op = EffectKeyOff
+
+	case 0x19:
+		e.Op = EffectPanningSlide
 
 	default:
 		fmt.Printf("unsupported effect: %02X\n", n.EffectType)

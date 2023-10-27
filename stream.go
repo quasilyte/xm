@@ -28,6 +28,7 @@ type Stream struct {
 	settings streamSettings
 
 	// These values can change during the playback.
+	globalVolume   float64
 	bpm            float64
 	samplesPerTick float64
 	ticksPerRow    int // Also known as "tempo" and "spd"
@@ -228,6 +229,7 @@ func (s *Stream) Rewind() {
 		ch.id = i
 	}
 
+	s.globalVolume = 1.0
 	s.patternIndex = -1
 	s.patternRowsRemain = 0
 	s.patternRowIndex = -1
@@ -259,6 +261,7 @@ func (s *Stream) nextTick() bool {
 	s.rowTicksRemain--
 	s.tickIndex++
 
+	baseVolume := s.settings.volumeScaling * s.globalVolume
 	for j := range s.channels {
 		ch := &s.channels[j]
 		note := ch.note
@@ -267,7 +270,7 @@ func (s *Stream) nextTick() bool {
 
 		panning := ch.panning + (ch.panningEnvelope.value-0.5)*(0.5-abs(ch.panning-0.5))*2
 
-		volume := s.settings.volumeScaling * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
+		volume := baseVolume * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
 		ch.computedVolume[0] = volume * math.Sqrt(1.0-panning)
 		ch.computedVolume[1] = volume * math.Sqrt(panning)
 
@@ -389,6 +392,11 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 				ch.volumeSlideValue = e.floatValue
 			}
 
+		case xmdb.EffectGlobalVolumeSlide:
+			if e.floatValue != 0 {
+				ch.globalVolumeSlideValue = e.floatValue
+			}
+
 		case xmdb.EffectPanningSlide:
 			if e.floatValue != 0 {
 				ch.panningSlideValue = e.floatValue
@@ -437,6 +445,9 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 			ch.volume = clampMin(ch.volume-e.floatValue, 0)
 		case xmdb.EffectFineVolumeSlideUp:
 			ch.volume = clampMax(ch.volume+e.floatValue, 1)
+
+		case xmdb.EffectSetGlobalVolume:
+			s.globalVolume = e.floatValue
 
 		case xmdb.EffectSetPanning:
 			ch.panning = e.floatValue
@@ -526,6 +537,12 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 				break
 			}
 			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
+
+		case xmdb.EffectGlobalVolumeSlide:
+			if s.tickIndex == 0 {
+				break
+			}
+			s.globalVolume = clamp(s.globalVolume+ch.globalVolumeSlideValue, 0, 1)
 
 		case xmdb.EffectPanningSlide:
 			if s.tickIndex == 0 {

@@ -375,7 +375,7 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 		}
 
 		switch e.Op {
-		case xmdb.EffectSetVolume:
+		case xmdb.EffectSetVolume, xmdb.EffectSetGlobalVolume:
 			v := e.Arg
 			if v > 64 {
 				v = 64
@@ -407,7 +407,7 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 			compiled.arp[0] = e.Arg >> 4                       // speed
 			compiled.floatValue = float64(e.Arg&0b1111) / 0x0F // depth
 
-		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide:
+		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide, xmdb.EffectGlobalVolumeSlide:
 			slideUp := e.Arg >> 4
 			slideDown := e.Arg & 0b1111
 			if slideUp > 0 && slideDown > 0 {
