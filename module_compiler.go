@@ -26,6 +26,7 @@ func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
 		sampleRate:  float64(config.sampleRate),
 		bpm:         float64(config.bpm),
 		ticksPerRow: int(config.tempo),
+		effectTab:   make([]noteEffect, 0, 24),
 	}
 	err := c.compile(m)
 	return c.result, err
