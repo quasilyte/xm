@@ -259,8 +259,11 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 					kind = noteGhostInstrument
 				case n.flags.Contains(noteValid) && rawNote.Instrument == 0:
 					kind = noteGhost
-				default:
+				case n.flags.Contains(noteValid) && rawNote.Instrument > 0:
 					kind = noteNormal
+				default:
+					// Probably a special note like "key off".
+					kind = noteEmpty
 				}
 				n.flags |= patternNoteFlags(kind) << (64 - 2)
 

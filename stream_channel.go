@@ -45,6 +45,13 @@ type streamChannel struct {
 	id int
 }
 
+type envelopeRunner struct {
+	envelope
+
+	value float64
+	frame int
+}
+
 func (ch *streamChannel) Reset() {
 	*ch = streamChannel{}
 }
@@ -77,39 +84,30 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 		return
 	}
 
-	inst := n.inst
-
 	hasNotePortamento := n.flags.Contains(noteHasNotePortamento)
-	if hasNotePortamento && inst == nil {
-		inst = ch.inst
+	if !hasNotePortamento && noteKind == noteNormal {
+		ch.inst = n.inst
+		ch.volumeEnvelope.envelope = n.inst.volumeEnvelope
+		ch.panningEnvelope.envelope = n.inst.panningEnvelope
 	}
 
 	ch.vibratoPeriodOffset = 0
 	ch.keyOn = true
 	ch.resetEnvelopes()
 
-	if inst == nil {
-		if n.period != 0 {
-			ch.period = n.period
-		}
-	} else {
-		// Start playing next note.
-		if n.period != 0 && !hasNotePortamento {
-			ch.sampleOffset = 0
-			ch.reverse = false
-			ch.period = n.period
-		}
-		ch.volumeEnvelope.envelope = inst.volumeEnvelope
-		ch.panningEnvelope.envelope = inst.panningEnvelope
-		ch.volume = inst.volume
-		ch.inst = inst
-		ch.panning = inst.panning
+	if !hasNotePortamento && n.flags.Contains(noteValid) {
+		ch.period = n.period
 	}
-}
 
-type envelopeRunner struct {
-	envelope
+	if !hasNotePortamento && noteKind != noteGhostInstrument {
+		ch.sampleOffset = 0
+		ch.reverse = false
+	}
 
-	value float64
-	frame int
+	if ch.inst != nil {
+		if noteKind != noteGhost {
+			ch.volume = ch.inst.volume
+		}
+		ch.panning = ch.inst.panning
+	}
 }
