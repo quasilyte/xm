@@ -85,10 +85,8 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 		inst = ch.inst
 	}
 
-	if n.period != 0 {
-		ch.keyOn = true
-		ch.resetEnvelopes()
-	}
+	ch.keyOn = true
+	ch.resetEnvelopes()
 
 	if inst == nil {
 		if n.period != 0 {
