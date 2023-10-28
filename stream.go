@@ -270,7 +270,8 @@ func (s *Stream) nextTick() bool {
 
 		panning := ch.panning + (ch.panningEnvelope.value-0.5)*(0.5-abs(ch.panning-0.5))*2
 
-		volume := baseVolume * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
+		// 0.25 is an amplification heuristic to avoid clipping.
+		volume := 0.25 * baseVolume * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
 		ch.computedVolume[0] = volume * math.Sqrt(1.0-panning)
 		ch.computedVolume[1] = volume * math.Sqrt(panning)
 
@@ -605,9 +606,8 @@ func (s *Stream) readTick(b []byte) {
 			}
 			v := inst.samples[sampleOffset]
 
-			// 0.25 is an amplification heuristic to avoid clipping.
-			left += int16(0.25 * float64(v) * ch.computedVolume[0])
-			right += int16(0.25 * float64(v) * ch.computedVolume[1])
+			left += int16(float64(v) * ch.computedVolume[0])
+			right += int16(float64(v) * ch.computedVolume[1])
 
 			switch inst.loopType {
 			case xmfile.SampleLoopNone:
