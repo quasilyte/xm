@@ -250,7 +250,6 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 		noteSliceOffset += numNotes
 
 		noteIndex := 0
-		var activeInst *instrument
 		for _, row := range rawPat.Rows {
 			for _, noteID := range row.Notes {
 				rawNote := m.Notes[noteID]
@@ -264,15 +263,11 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 					}
 				}
 
-				if inst != nil {
-					activeInst = inst
-				}
-
 				fnote := float64(rawNote.Note)
 				period := 0.0
 				isValid := rawNote.Note > 0 && rawNote.Note < 97
-				if isValid {
-					period = linearPeriod(calcRealNote(fnote, activeInst))
+				if isValid && rawNote.Instrument > 0 {
+					period = linearPeriod(calcRealNote(fnote, inst))
 				}
 
 				e1 := xmdb.Effect{}

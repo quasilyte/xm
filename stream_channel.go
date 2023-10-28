@@ -98,7 +98,11 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 	ch.resetEnvelopes()
 
 	if !hasNotePortamento && n.flags.Contains(noteValid) {
-		ch.period = n.period
+		if n.period == 0 {
+			ch.period = linearPeriod(calcRealNote(n.raw, ch.inst))
+		} else {
+			ch.period = n.period
+		}
 	}
 
 	if !hasNotePortamento && noteKind != noteGhostInstrument {
