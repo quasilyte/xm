@@ -1,6 +1,11 @@
 package xm
 
 type streamChannel struct {
+	// These values are used in the hottest code path (readTick).
+	// Keep them closer to the head of the struct.
+	computedVolume [2]float64
+	sampleOffset   float64
+
 	// Note-related data.
 	inst       *instrument
 	note       *patternNote
@@ -11,10 +16,8 @@ type streamChannel struct {
 
 	panning float64
 
-	sampleOffset   float64
-	volume         float64
-	fadeoutVolume  float64
-	computedVolume [2]float64
+	volume        float64
+	fadeoutVolume float64
 
 	// Arpeggio effect state.
 	arpeggioRunning    bool

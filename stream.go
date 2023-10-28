@@ -592,7 +592,7 @@ func (s *Stream) selectPattern(i int) {
 func (s *Stream) readTick(b []byte) {
 	n := int(s.module.samplesPerTick) * 4
 	for i := 0; i < n; i += 4 {
-		left := int16(0) // TODO: maybe use floats here?
+		left := int16(0)
 		right := int16(0)
 		for j := range s.channels {
 			ch := &s.channels[j]
