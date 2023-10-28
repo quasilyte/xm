@@ -1,7 +1,6 @@
 package xm
 
 import (
-	"encoding/binary"
 	"errors"
 	"io"
 	"math"
@@ -642,9 +641,15 @@ func (s *Stream) readTick(b []byte) {
 			}
 		}
 
-		// Stereo channel 1.
-		binary.LittleEndian.PutUint16(b[i:], uint16(left))
-		// Stereo channel 2.
-		binary.LittleEndian.PutUint16(b[i+2:], uint16(right))
+		left16 := uint16(left)
+		right16 := uint16(right)
+
+		// Put two uint16s using LittleEndian scheme.
+		chunk := b[i:]
+		_ = chunk[3] // Early bound check
+		chunk[0] = byte(left16)
+		chunk[1] = byte(left16 >> 8)
+		chunk[2] = byte(right16)
+		chunk[3] = byte(right16 >> 8)
 	}
 }
