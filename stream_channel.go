@@ -95,9 +95,15 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 
 	hasNotePortamento := n.flags.Contains(noteHasNotePortamento)
 	if !hasNotePortamento && noteKind == noteNormal {
-		ch.inst = n.inst
-		ch.volumeEnvelope.envelope = n.inst.volumeEnvelope
-		ch.panningEnvelope.envelope = n.inst.panningEnvelope
+		if n.flags.Contains(noteBadInstrument) {
+			// Cut the current note.
+			ch.inst = nil
+			ch.volume = 0
+		} else {
+			ch.inst = n.inst
+			ch.volumeEnvelope.envelope = n.inst.volumeEnvelope
+			ch.panningEnvelope.envelope = n.inst.panningEnvelope
+		}
 	}
 
 	ch.vibratoPeriodOffset = 0

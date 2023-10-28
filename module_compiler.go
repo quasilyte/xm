@@ -255,11 +255,13 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				rawNote := m.Notes[noteID]
 				var n patternNote
 				var inst *instrument
+				badInstrument := false
 				if rawNote.Instrument != 0 {
 					i := int(rawNote.Instrument) - 1
-					// TODO: what to do with overflowing instrument?
 					if i < len(c.result.instruments) {
 						inst = &c.result.instruments[i]
+					} else {
+						badInstrument = true
 					}
 				}
 
@@ -289,6 +291,9 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 				}
 				if isValid {
 					n.flags |= noteValid
+				}
+				if badInstrument {
+					n.flags |= noteBadInstrument
 				}
 
 				var kind patternNoteKind

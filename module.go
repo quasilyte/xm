@@ -64,6 +64,7 @@ const (
 	noteHasArpeggio
 	noteHasVibrato
 	noteValid
+	noteBadInstrument
 	noteInitialized
 )
 
