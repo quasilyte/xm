@@ -1,5 +1,9 @@
 package xm
 
+import (
+	"github.com/quasilyte/xm/xmfile"
+)
+
 type streamChannel struct {
 	// These values are used in the hottest code path (readTick).
 	// Keep them closer to the head of the struct.
@@ -119,4 +123,16 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 		}
 		ch.panning = ch.inst.panning
 	}
+}
+
+func (ch *streamChannel) IsActive() bool {
+	if ch.inst == nil {
+		return false
+	}
+	if ch.inst.loopType == xmfile.SampleLoopNone {
+		if int(ch.sampleOffset) >= len(ch.inst.samples) {
+			return false
+		}
+	}
+	return true
 }

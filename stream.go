@@ -35,7 +35,8 @@ type Stream struct {
 	bytesPerTick   int
 	bytePos        int // Used to report the current pos via Seek()
 
-	channels []streamChannel
+	channels       []streamChannel
+	activeChannels []*streamChannel
 }
 
 type streamSettings struct {
@@ -118,8 +119,10 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 
 	if cap(s.channels) < m.NumChannels {
 		s.channels = make([]streamChannel, m.NumChannels)
+		s.activeChannels = make([]*streamChannel, m.NumChannels)
 	}
 	s.channels = s.channels[:m.NumChannels]
+	s.activeChannels = s.activeChannels[:0]
 
 	compiled, err := compileModule(m, moduleConfig{
 		sampleRate: config.SampleRate,
@@ -215,9 +218,10 @@ func (s *Stream) Rewind() {
 	// Make all fields zero-initialized just to be safe.
 	// Copying the module object is redundant, but oh well (it's a shallow copy anyway).
 	*s = Stream{
-		module:   s.module,
-		channels: s.channels,
-		settings: s.settings,
+		module:         s.module,
+		channels:       s.channels,
+		activeChannels: s.activeChannels,
+		settings:       s.settings,
 	}
 
 	// Now initialize the player to the "ready to start" state.
@@ -261,6 +265,7 @@ func (s *Stream) nextTick() bool {
 	s.rowTicksRemain--
 	s.tickIndex++
 
+	s.activeChannels = s.activeChannels[:0]
 	baseVolume := s.settings.volumeScaling * s.globalVolume
 	for j := range s.channels {
 		ch := &s.channels[j]
@@ -290,6 +295,10 @@ func (s *Stream) nextTick() bool {
 
 		freq := linearFrequency(ch.period - (64 * ch.arpeggioNoteOffset) - (16 * ch.vibratoPeriodOffset))
 		ch.sampleStep = freq / s.module.sampleRate
+
+		if ch.IsActive() {
+			s.activeChannels = append(s.activeChannels, ch)
+		}
 	}
 
 	return true
@@ -594,12 +603,8 @@ func (s *Stream) readTick(b []byte) {
 	for i := 0; i < n; i += 4 {
 		left := int16(0)
 		right := int16(0)
-		for j := range s.channels {
-			ch := &s.channels[j]
+		for _, ch := range s.activeChannels {
 			inst := ch.inst
-			if inst == nil {
-				continue
-			}
 			sampleOffset := int(ch.sampleOffset)
 			if sampleOffset >= len(inst.samples) {
 				continue
