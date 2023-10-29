@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/quasilyte/xm/internal/xmdb"
 	"github.com/quasilyte/xm/xmfile"
@@ -83,12 +84,11 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 			err := fmt.Errorf("multi-sample instruments are not supported yet (found %d)", len(inst.Samples))
 			return fmt.Errorf("instrument[%d (%02X)]: %w", i, i, err)
 		}
-		sample := inst.Samples[0]
-		n := len(sample.Data)
-		if sample.Is16bits() {
-			n /= 2
+		sample := &inst.Samples[0]
+		if sample.LoopType() == xmfile.SampleLoopPingPong && len(sample.Data) < 2 {
+			return errors.New("a ping-pong sample can't be shorter than 2")
 		}
-		combinedSampleSize += n
+		combinedSampleSize += c.calculateSampleSize(sample)
 	}
 	// This 1 allocation should be enough for all samples.
 	c.samplePool = make([]int16, combinedSampleSize)
@@ -109,12 +109,9 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 }
 
 func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrument) (instrument, error) {
-	sample := inst.Samples[0]
+	sample := &inst.Samples[0]
 
-	numSamples := len(sample.Data)
-	if sample.Is16bits() {
-		numSamples /= 2
-	}
+	numSamples := c.calculateSampleSize(sample)
 	dstSamples := c.makeSampleBuf(numSamples)
 
 	loopEnd := sample.LoopStart + sample.LoopLength
@@ -133,7 +130,9 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 		}
 	}
 
+	numRealSamples := len(sample.Data)
 	if sample.Is16bits() {
+		numRealSamples /= 2
 		loopEnd /= 2
 		loopStart /= 2
 		loopLength /= 2
@@ -155,6 +154,28 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 			v += int8(delta)
 			dstSamples[i] = int16((int(v) << 8))
 		}
+	}
+
+	switch sample.LoopType() {
+	case xmfile.SampleLoopNone:
+		// Make it work by making loopEnd unreachable.
+		loopEnd = math.MaxInt
+	case xmfile.SampleLoopForward:
+		// Do nothing.
+	case xmfile.SampleLoopPingPong:
+		// Turn ping-pong loop into a forward loop.
+		// [1 2 3 4 5] => [1 2 3 4 5 | 4 3 2]
+		// [1 2 3 4]   => [1 2 3 4 | 3 2]
+		numExtraSamples := numRealSamples - 2
+		loopLength += numExtraSamples
+		loopEnd += numExtraSamples
+		for i := 0; i < numExtraSamples; i++ {
+			dstIndex := numRealSamples + i
+			srcIndex := numRealSamples - 2 - i
+			dstSamples[dstIndex] = dstSamples[srcIndex]
+		}
+	default:
+		return instrument{}, errors.New("unsupported loop type (one shot?)")
 	}
 
 	volumeEnvelope := c.compileEnvelope(inst.EnvelopeVolume, inst.VolumeFlags,
@@ -457,4 +478,15 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 	k := makeEffectKey(uint(index), uint(realLength))
 	c.effectSet[hash] = k
 	return k, nil
+}
+
+func (c *moduleCompiler) calculateSampleSize(sample *xmfile.InstrumentSample) int {
+	n := len(sample.Data)
+	if sample.LoopType() == xmfile.SampleLoopPingPong {
+		n += (n - 2)
+	}
+	if sample.Is16bits() {
+		n /= 2
+	}
+	return n
 }

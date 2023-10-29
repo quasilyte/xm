@@ -599,9 +599,11 @@ func (s *Stream) selectPattern(i int) {
 
 func (s *Stream) readTick(b []byte) {
 	n := s.module.bytesPerTick
+
 	for i := 0; i < n; i += 4 {
 		left := int16(0)
 		right := int16(0)
+
 		for _, ch := range s.activeChannels {
 			inst := ch.inst
 			sampleOffset := int(ch.sampleOffset)
@@ -613,30 +615,10 @@ func (s *Stream) readTick(b []byte) {
 			left += int16(float64(v) * ch.computedVolume[0])
 			right += int16(float64(v) * ch.computedVolume[1])
 
-			switch inst.loopType {
-			case xmfile.SampleLoopNone:
-				ch.sampleOffset += ch.sampleStep
-			case xmfile.SampleLoopForward:
-				ch.sampleOffset += ch.sampleStep
-				if ch.sampleOffset >= inst.loopEnd {
-					for ch.sampleOffset >= inst.loopEnd {
-						ch.sampleOffset -= inst.loopLength
-					}
-				}
-
-			case xmfile.SampleLoopPingPong:
-				if ch.reverse {
-					ch.sampleOffset -= ch.sampleStep
-					if ch.sampleOffset <= inst.loopStart {
-						ch.reverse = false
-						ch.sampleOffset = abs((inst.loopStart * 2) - ch.sampleOffset)
-					}
-				} else {
-					ch.sampleOffset += ch.sampleStep
-					if ch.sampleOffset >= inst.loopEnd {
-						ch.reverse = true
-						ch.sampleOffset = abs((inst.loopEnd * 2) - ch.sampleOffset)
-					}
+			ch.sampleOffset += ch.sampleStep
+			if ch.sampleOffset >= inst.loopEnd {
+				for ch.sampleOffset >= inst.loopEnd {
+					ch.sampleOffset -= inst.loopLength
 				}
 			}
 		}
