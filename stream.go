@@ -51,6 +51,8 @@ const (
 
 type StreamInfo struct {
 	BytesPerTick uint
+
+	MemoryUsage uint
 }
 
 // LoadModuleConfig configures the XM module loading.
@@ -251,6 +253,7 @@ func (s *Stream) setBPM(bpm float64) {
 func (s *Stream) GetInfo() StreamInfo {
 	return StreamInfo{
 		BytesPerTick: uint(s.module.bytesPerTick),
+		MemoryUsage:  moduleSize(&s.module),
 	}
 }
 

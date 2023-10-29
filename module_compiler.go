@@ -502,11 +502,11 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 
 func (c *moduleCompiler) calculateSampleSize(inst *instrument, sample *xmfile.InstrumentSample) int {
 	n := len(sample.Data)
-	if sample.LoopType() == xmfile.SampleLoopPingPong {
-		n += int(inst.loopLength) - 2
-	}
 	if sample.Is16bits() {
 		n /= 2
+	}
+	if sample.LoopType() == xmfile.SampleLoopPingPong {
+		n += int(inst.loopLength) - 2
 	}
 	return n
 }
