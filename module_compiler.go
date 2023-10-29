@@ -66,8 +66,8 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 
 func (c *moduleCompiler) makeSampleBuf(l int) []int16 {
 	if len(c.samplePool) < l {
-		// Should ~never happen.
-		return make([]int16, l)
+		// Should never happen.
+		panic("failed to preallocate just enough memory?")
 	}
 	buf := c.samplePool[:l]
 	c.samplePool = c.samplePool[l:]
@@ -75,67 +75,50 @@ func (c *moduleCompiler) makeSampleBuf(l int) []int16 {
 }
 
 func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
-	combinedSampleSize := 0
-	for i, inst := range m.Instruments {
-		if len(inst.Samples) == 0 {
-			continue
-		}
-		if len(inst.Samples) != 1 {
-			err := fmt.Errorf("multi-sample instruments are not supported yet (found %d)", len(inst.Samples))
-			return fmt.Errorf("instrument[%d (%02X)]: %w", i, i, err)
-		}
-		sample := &inst.Samples[0]
-		if sample.LoopType() == xmfile.SampleLoopPingPong && len(sample.Data) < 2 {
-			return errors.New("a ping-pong sample can't be shorter than 2")
-		}
-		combinedSampleSize += c.calculateSampleSize(sample)
-	}
-	// This 1 allocation should be enough for all samples.
-	c.samplePool = make([]int16, combinedSampleSize)
-
 	c.result.instruments = make([]instrument, m.NumInstruments)
-	for i, inst := range m.Instruments {
-		if len(inst.Samples) == 0 {
+	for i, rawInst := range m.Instruments {
+		if len(rawInst.Samples) == 0 {
 			continue
 		}
-		dstInst, err := c.compileInstrument(m, inst)
+		dstInst, err := c.compileInstrument(m, rawInst)
 		if err != nil {
 			return fmt.Errorf("instrument[%d (%02X)]: %w", i, i, err)
 		}
 		c.result.instruments[i] = dstInst
 	}
 
+	combinedSampleSize := 0
+	for i := range m.Instruments {
+		rawInst := m.Instruments[i]
+		if len(rawInst.Samples) == 0 {
+			continue
+		}
+		dstInst := &c.result.instruments[i]
+		combinedSampleSize += c.calculateSampleSize(dstInst, &rawInst.Samples[0])
+	}
+	// This 1 allocation should be enough for all samples.
+	c.samplePool = make([]int16, combinedSampleSize)
+
+	// Now we have the memory to allocate and load the samples.
+	for i := range m.Instruments {
+		rawInst := m.Instruments[i]
+		if len(rawInst.Samples) == 0 {
+			continue
+		}
+		dstInst := &c.result.instruments[i]
+		c.loadInstrumentSample(dstInst, &rawInst.Samples[0])
+	}
+
 	return nil
 }
 
-func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrument) (instrument, error) {
-	sample := &inst.Samples[0]
-
-	numSamples := c.calculateSampleSize(sample)
+func (c *moduleCompiler) loadInstrumentSample(inst *instrument, sample *xmfile.InstrumentSample) {
+	numSamples := c.calculateSampleSize(inst, sample)
 	dstSamples := c.makeSampleBuf(numSamples)
-
-	loopEnd := sample.LoopStart + sample.LoopLength
-	loopStart := sample.LoopStart
-	loopLength := sample.LoopLength
-	if sample.LoopStart > sample.Length {
-		loopStart = loopLength
-	}
-	if loopEnd > sample.Length {
-		loopEnd = sample.Length
-	}
-	loopLength = loopEnd - loopStart
-	if sample.LoopType() == xmfile.SampleLoopForward {
-		if loopStart > loopEnd {
-			return instrument{}, errors.New("sample loopStart > loopEnd")
-		}
-	}
 
 	numRealSamples := len(sample.Data)
 	if sample.Is16bits() {
 		numRealSamples /= 2
-		loopEnd /= 2
-		loopStart /= 2
-		loopLength /= 2
 
 		v := int16(0)
 		k := 0
@@ -159,20 +142,59 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 	switch sample.LoopType() {
 	case xmfile.SampleLoopNone:
 		// Make it work by making loopEnd unreachable.
-		loopEnd = math.MaxInt
+		inst.loopEnd = math.MaxInt
 	case xmfile.SampleLoopForward:
 		// Do nothing.
 	case xmfile.SampleLoopPingPong:
 		// Turn ping-pong loop into a forward loop.
 		// [1 2 3 4 5] => [1 2 3 4 5 | 4 3 2]
 		// [1 2 3 4]   => [1 2 3 4 | 3 2]
-		numExtraSamples := numRealSamples - 2
-		loopLength += numExtraSamples
-		loopEnd += numExtraSamples
+		loopLength := int(inst.loopLength)
+		numExtraSamples := loopLength - 2
+		inst.loopLength += float64(numExtraSamples)
+		inst.loopEnd += float64(numExtraSamples)
 		for i := 0; i < numExtraSamples; i++ {
 			dstIndex := numRealSamples + i
 			srcIndex := numRealSamples - 2 - i
 			dstSamples[dstIndex] = dstSamples[srcIndex]
+		}
+	}
+
+	inst.samples = dstSamples
+}
+
+func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrument) (instrument, error) {
+	if len(inst.Samples) != 1 {
+		return instrument{}, fmt.Errorf("multi-sample instruments are not supported yet (found %d)", len(inst.Samples))
+	}
+
+	sample := &inst.Samples[0]
+
+	loopEnd := sample.LoopStart + sample.LoopLength
+	loopStart := sample.LoopStart
+	loopLength := sample.LoopLength
+	if sample.LoopStart > sample.Length {
+		loopStart = loopLength
+	}
+	if loopEnd > sample.Length {
+		loopEnd = sample.Length
+	}
+	loopLength = loopEnd - loopStart
+	if sample.Is16bits() {
+		loopEnd /= 2
+		loopStart /= 2
+		loopLength /= 2
+	}
+	switch sample.LoopType() {
+	case xmfile.SampleLoopNone:
+		// OK.
+	case xmfile.SampleLoopForward:
+		if loopStart > loopEnd {
+			return instrument{}, errors.New("sample loopStart > loopEnd")
+		}
+	case xmfile.SampleLoopPingPong:
+		if len(sample.Data) < 2 || loopLength < 2 {
+			return instrument{}, errors.New("a ping-pong sample loop can't be shorter than 2")
 		}
 	default:
 		return instrument{}, errors.New("unsupported loop type (one shot?)")
@@ -184,8 +206,6 @@ func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrum
 		inst.PanningSustainPoint, inst.PanningLoopStartPoint, inst.PanningLoopEndPoint)
 
 	dstInst := instrument{
-		samples: dstSamples,
-
 		finetune:     int8(sample.Finetune),
 		relativeNote: int8(sample.RelativeNote),
 
@@ -480,10 +500,10 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 	return k, nil
 }
 
-func (c *moduleCompiler) calculateSampleSize(sample *xmfile.InstrumentSample) int {
+func (c *moduleCompiler) calculateSampleSize(inst *instrument, sample *xmfile.InstrumentSample) int {
 	n := len(sample.Data)
 	if sample.LoopType() == xmfile.SampleLoopPingPong {
-		n += (n - 2)
+		n += int(inst.loopLength) - 2
 	}
 	if sample.Is16bits() {
 		n /= 2
