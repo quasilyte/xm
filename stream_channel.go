@@ -4,10 +4,15 @@ import (
 	"github.com/quasilyte/xm/xmfile"
 )
 
+const (
+	numRampPoints = 32
+)
+
 type streamChannel struct {
 	// These values are used in the hottest code path (readTick).
 	// Keep them closer to the head of the struct.
 	computedVolume [2]float64
+	targetVolume   [2]float64
 	sampleOffset   float64
 
 	// Note-related data.
@@ -22,6 +27,10 @@ type streamChannel struct {
 
 	volume        float64
 	fadeoutVolume float64
+
+	// Ramping state.
+	rampFrame   uint
+	rampSamples [numRampPoints]float64
 
 	// Arpeggio effect state.
 	arpeggioRunning    bool
@@ -100,6 +109,15 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 			ch.inst = nil
 			ch.volume = 0
 		} else {
+			// Read some trailing samples for the transition.
+			if ch.inst == nil {
+				ch.rampSamples = [32]float64{}
+			} else {
+				for i := range ch.rampSamples {
+					ch.rampSamples[i] = float64(ch.NextSample())
+				}
+			}
+			ch.rampFrame = 0
 			ch.inst = n.inst
 			ch.volumeEnvelope.envelope = n.inst.volumeEnvelope
 			ch.panningEnvelope.envelope = n.inst.panningEnvelope
@@ -129,6 +147,24 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 		}
 		ch.panning = ch.inst.panning
 	}
+}
+
+func (ch *streamChannel) NextSample() int16 {
+	sampleOffset := int(ch.sampleOffset)
+	if sampleOffset >= len(ch.inst.samples) {
+		return 0
+	}
+
+	v := ch.inst.samples[sampleOffset]
+
+	ch.sampleOffset += ch.sampleStep
+	if ch.sampleOffset >= ch.inst.loopEnd {
+		for ch.sampleOffset >= ch.inst.loopEnd {
+			ch.sampleOffset -= ch.inst.loopLength
+		}
+	}
+
+	return v
 }
 
 func (ch *streamChannel) IsActive() bool {

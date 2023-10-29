@@ -18,6 +18,10 @@ func slideTowards[T numeric](v, goal, delta T) T {
 	return v
 }
 
+func lerp(u, v, t float64) float64 {
+	return u + t*(v-u)
+}
+
 func clampMin[T numeric](v, min T) T {
 	if v < min {
 		return min
@@ -90,4 +94,12 @@ func envelopeLerp(a, b envelopePoint, frame int) float64 {
 	}
 	p := float64(frame-a.frame) / float64(b.frame-a.frame)
 	return a.value*(1-p) + b.value*p
+}
+
+func putPCM(buf []byte, left, right uint16) {
+	_ = buf[3] // Early bound check
+	buf[0] = byte(left)
+	buf[1] = byte(left >> 8)
+	buf[2] = byte(right)
+	buf[3] = byte(right >> 8)
 }

@@ -279,8 +279,8 @@ func (s *Stream) nextTick() bool {
 
 		// 0.25 is an amplification heuristic to avoid clipping.
 		volume := 0.25 * baseVolume * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
-		ch.computedVolume[0] = volume * math.Sqrt(1.0-panning)
-		ch.computedVolume[1] = volume * math.Sqrt(panning)
+		ch.targetVolume[0] = volume * math.Sqrt(1.0-panning)
+		ch.targetVolume[1] = volume * math.Sqrt(panning)
 
 		if !ch.effect.IsEmpty() {
 			s.applyTickEffect(ch)
@@ -601,40 +601,47 @@ func (s *Stream) selectPattern(i int) {
 }
 
 func (s *Stream) readTick(b []byte) {
+	// This function dominates the music rendering execution time.
+	// It's important to keep it very efficient.
+	// The slightest change inside this nested loop can result in ~10% playback
+	// performance regression.
+
 	n := s.module.bytesPerTick
 
-	for i := 0; i < n; i += 4 {
+	const (
+		rampBytes  = 2 * 2 * numRampPoints
+		volumeRamp = 1.0 / 180.0
+	)
+
+	for i := 0; i < rampBytes; i += 4 {
 		left := int16(0)
 		right := int16(0)
 
 		for _, ch := range s.activeChannels {
-			inst := ch.inst
-			sampleOffset := int(ch.sampleOffset)
-			if sampleOffset >= len(inst.samples) {
-				continue
+			v := float64(ch.NextSample())
+			if ch.rampFrame < uint(len(ch.rampSamples)) {
+				v = lerp(ch.rampSamples[ch.rampFrame], v, float64(ch.rampFrame)/float64(len(ch.rampSamples)))
 			}
-			v := inst.samples[sampleOffset]
-
-			left += int16(float64(v) * ch.computedVolume[0])
-			right += int16(float64(v) * ch.computedVolume[1])
-
-			ch.sampleOffset += ch.sampleStep
-			if ch.sampleOffset >= inst.loopEnd {
-				for ch.sampleOffset >= inst.loopEnd {
-					ch.sampleOffset -= inst.loopLength
-				}
-			}
+			left += int16(v * ch.computedVolume[0])
+			right += int16(v * ch.computedVolume[1])
+			ch.rampFrame++
+			ch.computedVolume[0] = slideTowards(ch.computedVolume[0], ch.targetVolume[0], volumeRamp)
+			ch.computedVolume[1] = slideTowards(ch.computedVolume[1], ch.targetVolume[1], volumeRamp)
 		}
 
-		left16 := uint16(left)
-		right16 := uint16(right)
+		putPCM(b[i:], uint16(left), uint16(right))
+	}
 
-		// Put two uint16s using LittleEndian scheme.
-		chunk := b[i:]
-		_ = chunk[3] // Early bound check
-		chunk[0] = byte(left16)
-		chunk[1] = byte(left16 >> 8)
-		chunk[2] = byte(right16)
-		chunk[3] = byte(right16 >> 8)
+	for i := rampBytes; i < n; i += 4 {
+		left := int16(0)
+		right := int16(0)
+
+		for _, ch := range s.activeChannels {
+			v := float64(ch.NextSample())
+			left += int16(v * ch.computedVolume[0])
+			right += int16(v * ch.computedVolume[1])
+		}
+
+		putPCM(b[i:], uint16(left), uint16(right))
 	}
 }
