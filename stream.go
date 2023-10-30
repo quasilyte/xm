@@ -64,6 +64,18 @@ type StreamInfo struct {
 //
 // These extra configuration methods can be used even after a module is loaded.
 type LoadModuleConfig struct {
+	// LinearInterpolation enables sub-samples that will make some music sound smoother.
+	// On average, this option will make loaded track to require ~x2 memory.
+	//
+	// The best way to figure out whether you need it or not is to listen to the results.
+	// Most XM players you can find have linear interpolation (lerp) enabled by default.
+	//
+	// A zero value means "no interpolation".
+	//
+	// This should not be confused with volume ramping.
+	// The volume ramping is always enabled and can't be turned off.
+	LinearInterpolation bool
+
 	// BPM sets the playback speed.
 	// Higher BPM will make the music play faster.
 	//
@@ -129,6 +141,7 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 		sampleRate: config.SampleRate,
 		bpm:        config.BPM,
 		tempo:      config.Tempo,
+		subSamples: config.LinearInterpolation,
 	})
 	if err != nil {
 		return err

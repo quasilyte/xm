@@ -27,6 +27,7 @@ type moduleConfig struct {
 	sampleRate uint
 	bpm        uint
 	tempo      uint
+	subSamples bool
 }
 
 type pattern struct {

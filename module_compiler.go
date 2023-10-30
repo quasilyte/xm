@@ -18,12 +18,15 @@ type moduleCompiler struct {
 	effectBuf []xmdb.Effect
 
 	samplePool []int16
+
+	subSamples bool
 }
 
 func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
 	c := &moduleCompiler{
-		effectSet: make(map[uint64]effectKey, 24),
-		effectBuf: make([]xmdb.Effect, 0, 4),
+		effectSet:  make(map[uint64]effectKey, 24),
+		effectBuf:  make([]xmdb.Effect, 0, 4),
+		subSamples: config.subSamples,
 	}
 	c.result = module{
 		sampleRate:  float64(config.sampleRate),
@@ -501,12 +504,40 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 }
 
 func (c *moduleCompiler) calculateSampleSize(inst *instrument, sample *xmfile.InstrumentSample) int {
-	n := len(sample.Data)
-	if sample.Is16bits() {
-		n /= 2
-	}
+	n := c.numSamples(sample)
+	_, totalSubSamples := c.numSubSamples(sample)
+	n += totalSubSamples
 	if sample.LoopType() == xmfile.SampleLoopPingPong {
 		n += int(inst.loopLength) - 2
 	}
 	return n
+}
+
+func (c *moduleCompiler) numSamples(sample *xmfile.InstrumentSample) int {
+	n := len(sample.Data)
+	if sample.Is16bits() {
+		n /= 2
+	}
+	return n
+}
+
+func (c *moduleCompiler) numSubSamples(sample *xmfile.InstrumentSample) (perSample, total int) {
+	if !c.subSamples {
+		return 0, 0
+	}
+	// Depending on the sample size, insert different number of sub-samples.
+	numSamples := c.numSamples(sample)
+	switch {
+	case numSamples <= 1:
+		perSample = 0
+	case numSamples <= 256:
+		perSample = 7
+	case numSamples <= 1024:
+		perSample = 4
+	case numSamples <= 4096:
+		perSample = 3
+	default:
+		perSample = 1
+	}
+	return perSample, (numSamples - 1) * perSample
 }
