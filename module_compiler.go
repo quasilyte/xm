@@ -82,7 +82,7 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 		}
 		dstInst, err := c.compileInstrument(m, rawInst)
 		if err != nil {
-			return fmt.Errorf("instrument[%d (%02X)]: %w", i, i, err)
+			return fmt.Errorf("instrument[%d (%02X)]: %w", i+1, i+1, err)
 		}
 		c.result.instruments[i] = dstInst
 	}
