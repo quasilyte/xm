@@ -1,6 +1,5 @@
 Optimization:
-- add benchmarks
-- don't initialize runners for empty channels
+- make xmfile parser reusable
 - cut comment-only samples
 
 Features:
