@@ -27,6 +27,7 @@ type moduleConfig struct {
 	sampleRate uint
 	bpm        uint
 	tempo      uint
+	subSamples bool
 }
 
 type pattern struct {
@@ -87,6 +88,8 @@ type instrument struct {
 	volume  float64
 	panning float64
 
+	sampleStepMultiplier float64
+
 	volumeEnvelope  envelope
 	panningEnvelope envelope
 
@@ -96,6 +99,8 @@ type instrument struct {
 	loopLength float64
 	loopStart  float64
 	loopEnd    float64
+
+	numSubSamples int
 
 	sample16bit bool
 }

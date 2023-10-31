@@ -18,12 +18,15 @@ type moduleCompiler struct {
 	effectBuf []xmdb.Effect
 
 	samplePool []int16
+
+	subSamples bool
 }
 
 func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
 	c := &moduleCompiler{
-		effectSet: make(map[uint64]effectKey, 24),
-		effectBuf: make([]xmdb.Effect, 0, 4),
+		effectSet:  make(map[uint64]effectKey, 24),
+		effectBuf:  make([]xmdb.Effect, 0, 4),
+		subSamples: config.subSamples,
 	}
 	c.result = module{
 		sampleRate:  float64(config.sampleRate),
@@ -61,6 +64,10 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 		}
 	}
 
+	if len(c.samplePool) != 0 {
+		panic("miscalculated sample pool size?")
+	}
+
 	return nil
 }
 
@@ -94,7 +101,7 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 			continue
 		}
 		dstInst := &c.result.instruments[i]
-		combinedSampleSize += c.calculateSampleSize(dstInst, &rawInst.Samples[0])
+		combinedSampleSize += c.calculateTotalSampleSize(dstInst, &rawInst.Samples[0])
 	}
 	// This 1 allocation should be enough for all samples.
 	c.samplePool = make([]int16, combinedSampleSize)
@@ -113,13 +120,14 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 }
 
 func (c *moduleCompiler) loadInstrumentSample(inst *instrument, sample *xmfile.InstrumentSample) {
-	numSamples := c.calculateSampleSize(inst, sample)
-	dstSamples := c.makeSampleBuf(numSamples)
+	// dstSamples is large enough to store the extended loop as well as sub-samples.
+	// We'll ignore sub-samples during the processing and then add them in a separate step.
+	// This makes the code a little bit easier to understand and less prone to nasty bugs.
+	dstSamples := c.makeSampleBuf(c.calculateTotalSampleSize(inst, sample))
+	numSamples := c.numSamples(sample)
+	sampleSize := c.calculateSampleSize(inst, sample)
 
-	numRealSamples := len(sample.Data)
 	if sample.Is16bits() {
-		numRealSamples /= 2
-
 		v := int16(0)
 		k := 0
 		for i := 0; i < len(sample.Data); i += 2 {
@@ -154,13 +162,86 @@ func (c *moduleCompiler) loadInstrumentSample(inst *instrument, sample *xmfile.I
 		inst.loopLength += float64(numExtraSamples)
 		inst.loopEnd += float64(numExtraSamples)
 		for i := 0; i < numExtraSamples; i++ {
-			dstIndex := numRealSamples + i
-			srcIndex := numRealSamples - 2 - i
+			dstIndex := numSamples + i
+			srcIndex := numSamples - 2 - i
 			dstSamples[dstIndex] = dstSamples[srcIndex]
 		}
 	}
 
 	inst.samples = dstSamples
+	inst.sampleStepMultiplier = 1.0
+	if c.subSamples {
+		c.insertSubSamples(inst, sample, sampleSize)
+	}
+}
+
+func (c *moduleCompiler) insertSubSamples(inst *instrument, sample *xmfile.InstrumentSample, sampleSize int) {
+	// Sub samples make the compiler harder, but they do make the playback faster
+
+	numSub := c.numSubSamples(sample)
+	if numSub == 0 {
+		return
+	}
+	samplesToProcess := sampleSize - 1
+	subSamplesToProcess := (sampleSize - 1) * numSub
+
+	// To avoid writing over the data we want to read during the next iteration,
+	// we iterate from the end of the array.
+	// That trailing part of the array is zero-filled and we can write over it easily.
+	// By the time we'll start overwriting data, it will become unrelated.
+
+	tStep := 0.0
+	switch numSub {
+	case 1:
+		tStep = 0.5
+	case 3:
+		tStep = 0.25
+	case 4:
+		tStep = 0.2
+	case 7:
+		tStep = 0.125
+	}
+
+	dstSamples := inst.samples
+
+	k := len(inst.samples) - 1
+	kStep := numSub + 1
+	for i := samplesToProcess; i > 0; i-- {
+		t := tStep
+		u := dstSamples[i-1]
+		v := dstSamples[i]
+		uf := float64(u)
+		vf := float64(v)
+		dstSamples[k] = v
+		dstSamples[k-kStep] = u
+		for j := 0; j < numSub; j++ {
+			index := k - j - 1
+			dstSamples[index] = int16(lerp(vf, uf, t))
+			t += tStep
+			subSamplesToProcess--
+		}
+		samplesToProcess--
+		k -= kStep
+	}
+
+	inst.sampleStepMultiplier = float64(sampleSize+((sampleSize-1)*numSub)) / float64(sampleSize)
+
+	if sample.LoopType() != xmfile.SampleLoopNone {
+		if numSub != 0 {
+			inst.numSubSamples = numSub
+			inst.loopEnd = float64(int(inst.loopEnd)*(numSub+1) - numSub)
+			inst.loopStart = float64(int(inst.loopStart) * (numSub + 1))
+			inst.loopLength = float64(int(inst.loopLength)*(numSub+1) - numSub)
+		}
+	}
+
+	// Some sanity checks.
+	if samplesToProcess != 0 {
+		panic("some samples were not processed")
+	}
+	if subSamplesToProcess != 0 {
+		panic("processed sub-sample count mismatched")
+	}
 }
 
 func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrument) (instrument, error) {
@@ -501,12 +582,45 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 }
 
 func (c *moduleCompiler) calculateSampleSize(inst *instrument, sample *xmfile.InstrumentSample) int {
-	n := len(sample.Data)
-	if sample.Is16bits() {
-		n /= 2
-	}
+	n := c.numSamples(sample)
 	if sample.LoopType() == xmfile.SampleLoopPingPong {
 		n += int(inst.loopLength) - 2
 	}
 	return n
+}
+
+func (c *moduleCompiler) calculateTotalSampleSize(inst *instrument, sample *xmfile.InstrumentSample) int {
+	n := c.calculateSampleSize(inst, sample)
+	if numSub := c.numSubSamples(sample); numSub != 0 {
+		n += (n - 1) * numSub
+	}
+	return n
+}
+
+func (c *moduleCompiler) numSamples(sample *xmfile.InstrumentSample) int {
+	n := len(sample.Data)
+	if sample.Is16bits() {
+		n /= 2
+	}
+	return n
+}
+
+func (c *moduleCompiler) numSubSamples(sample *xmfile.InstrumentSample) int {
+	if !c.subSamples {
+		return 0
+	}
+	// Depending on the sample size, insert different number of sub-samples.
+	numSamples := c.numSamples(sample)
+	switch {
+	case numSamples <= 1:
+		return 0
+	case numSamples <= 256:
+		return 7
+	case numSamples <= 1024:
+		return 4
+	case numSamples <= 4096:
+		return 3
+	default:
+		return 1
+	}
 }

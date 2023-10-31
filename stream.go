@@ -64,6 +64,18 @@ type StreamInfo struct {
 //
 // These extra configuration methods can be used even after a module is loaded.
 type LoadModuleConfig struct {
+	// LinearInterpolation enables sub-samples that will make some music sound smoother.
+	// On average, this option will make loaded track to require ~x2 memory.
+	//
+	// The best way to figure out whether you need it or not is to listen to the results.
+	// Most XM players you can find have linear interpolation (lerp) enabled by default.
+	//
+	// A zero value means "no interpolation".
+	//
+	// This should not be confused with volume ramping.
+	// The volume ramping is always enabled and can't be turned off.
+	LinearInterpolation bool
+
 	// BPM sets the playback speed.
 	// Higher BPM will make the music play faster.
 	//
@@ -129,6 +141,7 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 		sampleRate: config.SampleRate,
 		bpm:        config.BPM,
 		tempo:      config.Tempo,
+		subSamples: config.LinearInterpolation,
 	})
 	if err != nil {
 		return err
@@ -297,6 +310,9 @@ func (s *Stream) nextTick() bool {
 
 		freq := linearFrequency(ch.period - (64 * ch.arpeggioNoteOffset) - (16 * ch.vibratoPeriodOffset))
 		ch.sampleStep = freq / s.module.sampleRate
+		if ch.inst != nil {
+			ch.sampleStep *= ch.inst.sampleStepMultiplier
+		}
 
 		if ch.IsActive() {
 			s.activeChannels = append(s.activeChannels, ch)
@@ -468,11 +484,21 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 			if ch.inst == nil {
 				break
 			}
+			// TODO: can we precalculate this period in the compiler, somehow?
+			// I'm afraid of the current instrument dependency (which can be
+			// inferred by the compiler, but it won't work in case of a
+			// pattern jump, etc.)
+			// Since this is not a hot path, let's compute the offset the hard way.
+			offset := 0.0
 			if ch.inst.sample16bit {
-				ch.sampleOffset = e.floatValue * 0.5
+				offset = e.floatValue * 0.5
 			} else {
-				ch.sampleOffset = e.floatValue
+				offset = e.floatValue
 			}
+			if ch.inst.numSubSamples != 0 {
+				offset = float64(int(offset) * (ch.inst.numSubSamples + 1))
+			}
+			ch.sampleOffset = offset
 		}
 	}
 }
