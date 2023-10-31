@@ -310,6 +310,9 @@ func (s *Stream) nextTick() bool {
 
 		freq := linearFrequency(ch.period - (64 * ch.arpeggioNoteOffset) - (16 * ch.vibratoPeriodOffset))
 		ch.sampleStep = freq / s.module.sampleRate
+		if ch.inst != nil {
+			ch.sampleStep *= ch.inst.sampleStepMultiplier
+		}
 
 		if ch.IsActive() {
 			s.activeChannels = append(s.activeChannels, ch)
@@ -481,11 +484,21 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 			if ch.inst == nil {
 				break
 			}
+			// TODO: can we precalculate this period in the compiler, somehow?
+			// I'm afraid of the current instrument dependency (which can be
+			// inferred by the compiler, but it won't work in case of a
+			// pattern jump, etc.)
+			// Since this is not a hot path, let's compute the offset the hard way.
+			offset := 0.0
 			if ch.inst.sample16bit {
-				ch.sampleOffset = e.floatValue * 0.5
+				offset = e.floatValue * 0.5
 			} else {
-				ch.sampleOffset = e.floatValue
+				offset = e.floatValue
 			}
+			if ch.inst.numSubSamples != 0 {
+				offset = float64(int(offset) * (ch.inst.numSubSamples + 1))
+			}
+			ch.sampleOffset = offset
 		}
 	}
 }
