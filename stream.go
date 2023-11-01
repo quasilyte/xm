@@ -73,6 +73,7 @@ type StreamInfo struct {
 //
 // Some extra configurations are available via Stream methods:
 //   - Stream.SetVolume()
+//   - Stream.SetLooping()
 //
 // These extra configuration methods can be used even after a module is loaded.
 type LoadModuleConfig struct {
