@@ -212,15 +212,14 @@ func (c *moduleCompiler) insertSubSamples(inst *instrument, sample *xmfile.Instr
 		v := dstSamples[i]
 		uf := float64(u)
 		vf := float64(v)
-		dstSamples[k] = v
 		dstSamples[k-kStep] = u
+		dstSamples[k] = v
 		for j := 0; j < numSub; j++ {
 			index := k - j - 1
 			dstSamples[index] = int16(lerp(vf, uf, t))
 			t += tStep
 			subSamplesToProcess--
 		}
-		samplesToProcess--
 		k -= kStep
 	}
 
@@ -236,9 +235,6 @@ func (c *moduleCompiler) insertSubSamples(inst *instrument, sample *xmfile.Instr
 	}
 
 	// Some sanity checks.
-	if samplesToProcess != 0 {
-		panic("some samples were not processed")
-	}
 	if subSamplesToProcess != 0 {
 		panic("processed sub-sample count mismatched")
 	}
