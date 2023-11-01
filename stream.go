@@ -44,6 +44,7 @@ type Stream struct {
 
 type streamSettings struct {
 	volumeScaling float64
+	loop          bool
 }
 
 type jumpKind uint8
@@ -132,6 +133,21 @@ func NewStream() *Stream {
 // The value is clamped in [0, 1].
 func (s *Stream) SetVolume(v float64) {
 	s.settings.volumeScaling = clamp(v, 0, 1)
+}
+
+// SetLooping enables a simple looping from the beginning of the stream.
+// When looping is enables, Read will never return EOF.
+//
+// Note that some XM tracks include the trailing jump/pattern break
+// effect that will make it loop in a more beautiful way.
+// Use this looping flag only if XM track does not have one.
+// You may need to perform some XM editing if there is a jump, but you
+// still want to use this basic looping scheme.
+//
+// Note: prefer this option to the InfiniteLoop provided by Ebitengine audio.
+// This native way of looping is ~free while InfiniteLoop has some overhead.
+func (s *Stream) SetLooping(loop bool) {
+	s.settings.loop = loop
 }
 
 // LoadModule assigns a new XM module to this stream.
@@ -244,6 +260,10 @@ func (s *Stream) Read(b []byte) (int, error) {
 	s.bytePos += written
 
 	if eof {
+		if s.settings.loop {
+			s.Rewind()
+			return written, nil
+		}
 		return written, io.EOF
 	}
 	return written, nil
