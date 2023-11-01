@@ -5,8 +5,52 @@ import (
 	"io"
 )
 
+// ParserConfig customizes parser behavior.
+type ParserConfig struct {
+	// NeedStrings tells whether this parser needs to load optional strings
+	// like instrument names. String loading usually means more allocations.
+	NeedStrings bool
+}
+
+// Parser implements XM file decoding.
+//
+// It's optimized for multi-use: if you need to load more than one XM module,
+// use the same parser to do so.
+// See Parse method comments to learn more details.
+type Parser struct {
+	impl *parser
+}
+
+// NewParser creates a ready-to-use XM parser.
+// The specified config will be used for all Parse calls.
+func NewParser(config ParserConfig) *Parser {
+	return &Parser{
+		impl: newParser(config),
+	}
+}
+
+// ParseFromBytes is like Parse, but it uses the byte slide directly.
+func (p *Parser) ParseFromBytes(data []byte) (*Module, error) {
+	err := p.impl.Parse(data)
+	return &p.impl.module, err
+}
+
+// Parse decodes the XM module file.
+//
+// Note that calling Parse again invalidates previously returned module.
+// This allows a better memory-reuse inside the parser for multi-use cases.
+// If you want to keep more than one module object at time, perform deep cloning.
+func (p *Parser) Parse(r io.Reader) (*Module, error) {
+	// TODO: may want to re-use data buffer between the Parse calls.
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("read data: %w", err)
+	}
+	return p.ParseFromBytes(data)
+}
+
 // Module is a parsed XM file contents.
-// This is a raw module format that is not optimized for anything.
+// This is a raw module format that is not optimized for playback.
 type Module struct {
 	Name string
 
@@ -148,27 +192,3 @@ const (
 	SampleFormatDeltaPacked SampleFormat = iota
 	SampleFormatADPCM
 )
-
-type ParserConfig struct {
-	NeedStrings bool
-}
-
-func ParseFromBytes(data []byte, config ParserConfig) (*Module, error) {
-	p := &parser{
-		data:    data,
-		noteSet: make(map[uint64]uint16, 512),
-		config:  config,
-	}
-	return p.Parse()
-}
-
-// Parse reads XM file data and decodes it into a module.
-//
-// A non-nil error is usually a *ParseError object.
-func Parse(r io.Reader, config ParserConfig) (*Module, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("read data: %w", err)
-	}
-	return ParseFromBytes(data, config)
-}

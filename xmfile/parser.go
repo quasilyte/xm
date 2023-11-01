@@ -16,13 +16,16 @@ type parser struct {
 	// Module holds the results of XM parsing.
 	module Module
 
-	uint16pool []uint16
+	uint16pool     objectPool[uint16]
+	patternRowPool objectPool[PatternRow]
 
 	noteSet map[uint64]uint16
 
 	scratchEnvelopePoints [24]EnvelopePoint
 
 	config ParserConfig
+
+	needsReset bool
 
 	// These fields below are needed for better error reporting.
 	stage         string
@@ -31,9 +34,41 @@ type parser struct {
 	subStageIndex int
 }
 
-func (p *parser) Parse() (*Module, error) {
-	err := p.parse()
-	return &p.module, err
+func newParser(config ParserConfig) *parser {
+	p := &parser{
+		noteSet: make(map[uint64]uint16, 512),
+		config:  config,
+	}
+	p.module.Notes = make([]PatternNote, 0, 512)
+	initObjectPool(&p.uint16pool, 2048*8)
+	initObjectPool(&p.patternRowPool, 64*20)
+	return p
+}
+
+func (p *parser) Parse(data []byte) error {
+	p.data = data
+	p.reset()
+	p.needsReset = true
+	return p.parse()
+}
+
+func (p *parser) reset() {
+	if !p.needsReset {
+		// This will only happen during the first run of the parser.
+		return
+	}
+
+	p.offset = 0
+	for k := range p.noteSet {
+		delete(p.noteSet, k)
+	}
+	p.uint16pool.Reset()
+	p.patternRowPool.Reset()
+
+	// Now reset the module.
+	p.module.Notes = p.module.Notes[:0]
+	p.module.Patterns = p.module.Patterns[:0]
+	p.module.Instruments = p.module.Instruments[:0]
 }
 
 func (p *parser) startStage(name string) {
@@ -46,23 +81,6 @@ func (p *parser) startStage(name string) {
 func (p *parser) startSubStage(name string) {
 	p.subStage = name
 	p.subStageIndex = -1
-}
-
-func (p *parser) makeUint16Slice(l int) []uint16 {
-	// Only small allocations go via this pool.
-	if l > 32 {
-		return make([]uint16, l)
-	}
-
-	if len(p.uint16pool) < l {
-		// Allocate a new pool.
-		const poolSize = 1024
-		p.uint16pool = make([]uint16, poolSize)
-	}
-
-	result := p.uint16pool[:l]
-	p.uint16pool = p.uint16pool[l:]
-	return result
 }
 
 func (p *parser) formatStage() string {
@@ -114,8 +132,7 @@ func (p *parser) read(l int, what string) []byte {
 	if p.dataBytesRemaining() < l {
 		panic(p.errorf("unexpected EOF while reading %s", what))
 	}
-	b := make([]byte, l)
-	copy(b, p.sliceData(l))
+	b := p.sliceData(l)
 	p.offset += l
 	return b
 }
@@ -182,8 +199,6 @@ func (p *parser) parse() (err error) {
 }
 
 func (p *parser) parseModule() {
-	p.module.Notes = make([]PatternNote, 0, 512)
-
 	// Add an empty note (ID=0).
 	p.module.Notes = append(p.module.Notes, PatternNote{})
 
@@ -278,14 +293,14 @@ func (p *parser) parsePattern() Pattern {
 			// Generate a Standard Empty pattern.
 			numRows = 64
 			pat.IsEmpty = true
-			pat.Rows = make([]PatternRow, numRows)
+			pat.Rows = p.patternRowPool.MakeSlice(numRows)
 			// Every byte is expected to be 0x80 (0b1000_0000).
 			// This results in MSB set, but no "read_x" bits make
 			// every note be 0.
 			// Therefore, we fill it with completely empty notes.
 			for i := range pat.Rows {
 				// Notes are zero values already, no extra loop is needed.
-				pat.Rows[i].Notes = p.makeUint16Slice(p.module.NumChannels)
+				pat.Rows[i].Notes = p.uint16pool.MakeSlice(p.module.NumChannels)
 			}
 			p.module.EmptyPattern = pat
 		}
@@ -293,9 +308,9 @@ func (p *parser) parsePattern() Pattern {
 	} else {
 		// TODO: read until all (number of rows)*(number of channels) are consumed?
 		// The docs claim that numRows may be imprecise in some XM files.
-		pat.Rows = make([]PatternRow, numRows)
+		pat.Rows = p.patternRowPool.MakeSlice(numRows)
 		for i := range pat.Rows {
-			pat.Rows[i].Notes = p.makeUint16Slice(p.module.NumChannels)
+			pat.Rows[i].Notes = p.uint16pool.MakeSlice(p.module.NumChannels)
 			for j := 0; j < p.module.NumChannels; j++ {
 				var note PatternNote
 				b := p.readByte("first note byte")
