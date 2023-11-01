@@ -9,6 +9,10 @@ import (
 	"github.com/quasilyte/xm/xmfile"
 )
 
+// Stream wraps the compiled XM module, making it possible to Read() its PCM bytes.
+//
+// The Read() method produces 16-bit little endian PCM bytes; this is what ebiten/audio
+// package extects. Use Stream as an io.Reader argument for audio.NewPlayer().
 type Stream struct {
 	module module
 
@@ -49,9 +53,16 @@ const (
 	jumpPatternBreak
 )
 
+// StreamInfo contains a compiled XM module stream information like bytes per tick, etc.
 type StreamInfo struct {
+	// BytesPerTick tell how much bytes this stream needs to fit a single XM tick.
+	// This value is important, since any slice smaller than this will give no effect
+	// for Read() function. Any greater values will work OK for it.
 	BytesPerTick uint
 
+	// MemoryUsage approximates the compiled XM module size in bytes.
+	// This can be important if you want to analyze linear interpolation (sub-samples)
+	// effect on your modules.
 	MemoryUsage uint
 }
 
@@ -123,6 +134,11 @@ func (s *Stream) SetVolume(v float64) {
 	s.settings.volumeScaling = clamp(v, 0, 1)
 }
 
+// LoadModule assigns a new XM module to this stream.
+//
+// Loading a module involves its compilation which is a slow process.
+// You want to load modules as rarely as possible (preferably exactly once)
+// and then play them via streams without ever releasing the memory.
 func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 	s.applyConfigDefaults(m, &config)
 
@@ -171,6 +187,11 @@ func (s *Stream) applyConfigDefaults(m *xmfile.Module, config *LoadModuleConfig)
 	}
 }
 
+// Seek partially implements io.Seeker.
+//
+// You can use it for two things:
+//  1. (0, SeekStart) for rewind
+//  2. (0, SeekCurrent) to get the byte pos inside the stream
 func (s *Stream) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
 	case io.SeekStart:
@@ -228,6 +249,8 @@ func (s *Stream) Read(b []byte) (int, error) {
 	return written, nil
 }
 
+// Rewind prepares the stream to play the module right from the start.
+// Doing rewind is relatively cheap.
 func (s *Stream) Rewind() {
 	// Make all fields zero-initialized just to be safe.
 	// Copying the module object is redundant, but oh well (it's a shallow copy anyway).
@@ -263,6 +286,8 @@ func (s *Stream) setBPM(bpm float64) {
 	s.samplesPerTick, s.bytesPerTick = calcSamplesPerTick(s.module.sampleRate, s.bpm)
 }
 
+// GetInfo returns stream-related info.
+// See StreamInfo for more details.
 func (s *Stream) GetInfo() StreamInfo {
 	return StreamInfo{
 		BytesPerTick: uint(s.module.bytesPerTick),
