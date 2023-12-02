@@ -53,6 +53,11 @@ func abs(x float64) float64 {
 	return x
 }
 
+func calcSecondsPerRow(ticksPerRow int, bpm float64) float64 {
+	ticksPerSecond := bpm * 0.4
+	return 1 / (ticksPerSecond / float64(ticksPerRow))
+}
+
 func calcSamplesPerTick(sampleRate, bpm float64) (samplesPerTick float64, bytesPerTick int) {
 	samplesPerTick = math.Round(sampleRate / (bpm * 0.4))
 	const (

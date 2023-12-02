@@ -21,6 +21,7 @@ type module struct {
 	// These values store the defaults for the stream.
 	samplesPerTick float64
 	bytesPerTick   int
+	secondsPerRow  float64
 }
 
 type moduleConfig struct {
@@ -101,6 +102,7 @@ type instrument struct {
 	loopEnd    float64
 
 	numSubSamples int
+	id            int
 
 	sample16bit bool
 }

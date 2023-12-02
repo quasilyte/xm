@@ -37,6 +37,8 @@ type Stream struct {
 	ticksPerRow    int // Also known as "tempo" and "spd"
 	bytesPerTick   int
 	bytePos        int // Used to report the current pos via Seek()
+	t              float64
+	secondsPerRow  float64
 
 	channels       []streamChannel
 	activeChannels []*streamChannel
@@ -45,6 +47,7 @@ type Stream struct {
 type streamSettings struct {
 	volumeScaling float64
 	loop          bool
+	eventHandler  func(e StreamEvent)
 }
 
 type jumpKind uint8
@@ -129,6 +132,18 @@ func NewStream() *Stream {
 	}
 }
 
+// SetEventHandler installs an event listener to the stream.
+//
+// f is called on every stream event.
+//
+// Events are produced when the XM track is being played.
+// Therefore, calling Read() may produce multiple events.
+//
+// Experimental: the events handling API may change significantly in the future.
+func (s *Stream) SetEventHandler(f func(e StreamEvent)) {
+	s.settings.eventHandler = f
+}
+
 // SetVolume adjusts the global volume scaling for the stream.
 // The default value is 0.8; a value of 0 disables the sound.
 // The value is clamped in [0, 1].
@@ -181,7 +196,8 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 	}
 	s.module = compiled
 
-	s.Rewind()
+	// Call a rewind() that won't trigger a Sync event.
+	s.rewind()
 
 	return nil
 }
@@ -273,6 +289,17 @@ func (s *Stream) Read(b []byte) (int, error) {
 // Rewind prepares the stream to play the module right from the start.
 // Doing rewind is relatively cheap.
 func (s *Stream) Rewind() {
+	if s.settings.eventHandler != nil {
+		s.settings.eventHandler(StreamEvent{
+			Kind:  EventSync,
+			Time:  s.t,
+			value: math.Float64bits(0),
+		})
+	}
+	s.rewind()
+}
+
+func (s *Stream) rewind() {
 	// Make all fields zero-initialized just to be safe.
 	// Copying the module object is redundant, but oh well (it's a shallow copy anyway).
 	*s = Stream{
@@ -305,6 +332,7 @@ func (s *Stream) Rewind() {
 func (s *Stream) setBPM(bpm float64) {
 	s.bpm = bpm
 	s.samplesPerTick, s.bytesPerTick = calcSamplesPerTick(s.module.sampleRate, s.bpm)
+	s.secondsPerRow = calcSecondsPerRow(s.module.ticksPerRow, s.bpm)
 }
 
 // GetInfo returns stream-related info.
@@ -437,6 +465,7 @@ func (s *Stream) nextRow() bool {
 		s.advanceChannelRow(&s.channels[i], &m.noteTab[notes[i]])
 	}
 
+	s.t += s.module.secondsPerRow
 	s.rowTicksRemain = s.ticksPerRow
 	s.tickIndex = -1
 	return true
@@ -447,6 +476,20 @@ func (s *Stream) advanceChannelRow(ch *streamChannel, n *patternNote) {
 
 	if !ch.effect.IsEmpty() {
 		s.applyRowEffect(ch, n)
+	}
+
+	if s.settings.eventHandler != nil && n.raw != 0 {
+		instID := -1
+		if ch.inst != nil {
+			instID = ch.inst.id
+		}
+		value := uint64(n.raw) | uint64(instID<<8) | (uint64(math.Float32bits(float32(ch.volume))) << 16)
+		s.settings.eventHandler(StreamEvent{
+			Kind:    EventNote,
+			Channel: ch.id,
+			Time:    s.t,
+			value:   value,
+		})
 	}
 }
 

@@ -45,6 +45,7 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 	}
 
 	c.result.samplesPerTick, c.result.bytesPerTick = calcSamplesPerTick(c.result.sampleRate, c.result.bpm)
+	c.result.secondsPerRow = calcSecondsPerRow(c.result.ticksPerRow, c.result.bpm)
 
 	if err := c.compileInstruments(m); err != nil {
 		return err
@@ -91,6 +92,7 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 		if err != nil {
 			return fmt.Errorf("instrument[%d (%02X)]: %w", i+1, i+1, err)
 		}
+		dstInst.id = i
 		c.result.instruments[i] = dstInst
 	}
 
