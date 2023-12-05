@@ -69,11 +69,16 @@ type StreamEvent struct {
 
 // NoteEventData returns the event data if e.Kind=EventSync.
 // The return values are: note, instrument (id), volume.
+// If there is no instrument, -1 is returned.
 func (e StreamEvent) NoteEventData() (note, instrument int, vol float32) {
 	noteBits := e.value & 0xff
 	instrumentBits := (e.value >> 8) & 0xff
 	volBits := e.value >> 16
-	return int(noteBits), int(instrumentBits), float32(math.Float32frombits(uint32(volBits)))
+	instrumentID := int(instrumentBits)
+	if instrumentID == 255 {
+		instrumentID = -1
+	}
+	return int(noteBits), instrumentID, float32(math.Float32frombits(uint32(volBits)))
 }
 
 // SyncEventData returns the event data if e.Kind=EventNote.

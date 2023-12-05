@@ -479,7 +479,7 @@ func (s *Stream) advanceChannelRow(ch *streamChannel, n *patternNote) {
 	}
 
 	if s.settings.eventHandler != nil && n.raw != 0 {
-		instID := -1
+		instID := 255 // It's a sentinel value that fits 8 bits
 		if ch.inst != nil {
 			instID = ch.inst.id
 		}
