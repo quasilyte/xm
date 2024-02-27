@@ -12,6 +12,8 @@ import (
 	"github.com/quasilyte/xm/xmfile"
 )
 
+// This simple CLI tool plays the specified XM track using Ebitengine audio player.
+
 func main() {
 	flag.Parse()
 	flag.Usage = func() {

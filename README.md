@@ -13,3 +13,5 @@ The `xm` package provides an XM music stream that produces 16-bit signed PCM LE 
 This package implements some of the common XM effects. Feel free to submit a PR to fill the feature gap.
 
 Why would you even need an XM player in your game? The answer is simple: size. This is very important in web exports of your game. An average OGG file can have a size of 6-8mb while the same song in XM can fit in ~300kb or even less.
+
+See [cmd/ebitengine-example] for an example.
