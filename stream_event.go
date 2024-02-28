@@ -78,7 +78,7 @@ func (e StreamEvent) NoteEventData() (note, instrument int, vol float32) {
 	if instrumentID == 255 {
 		instrumentID = -1
 	}
-	return int(noteBits), instrumentID, float32(math.Float32frombits(uint32(volBits)))
+	return int(noteBits), instrumentID, math.Float32frombits(uint32(volBits))
 }
 
 // SyncEventData returns the event data if e.Kind=EventNote.
