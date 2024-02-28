@@ -1,5 +1,8 @@
 # xm
 
+![Build Status](https://github.com/quasilyte/xm/workflows/Go/badge.svg)
+[![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/quasilyte/xm)](https://pkg.go.dev/mod/github.com/quasilyte/xm)
+
 This package is intended to be used in game development in Go with [Ebitengine](https://github.com/hajimehoshi/ebiten/).
 
 If you just need to parse an XM file, you can use the `xm/xmfile` package without importing the `xm` package itself.
