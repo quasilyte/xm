@@ -88,7 +88,7 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 		if len(rawInst.Samples) == 0 {
 			continue
 		}
-		dstInst, err := c.compileInstrument(m, rawInst)
+		dstInst, err := c.compileInstrument(rawInst)
 		if err != nil {
 			return fmt.Errorf("instrument[%d (%02X)]: %w", i+1, i+1, err)
 		}
@@ -242,7 +242,7 @@ func (c *moduleCompiler) insertSubSamples(inst *instrument, sample *xmfile.Instr
 	}
 }
 
-func (c *moduleCompiler) compileInstrument(m *xmfile.Module, inst xmfile.Instrument) (instrument, error) {
+func (c *moduleCompiler) compileInstrument(inst xmfile.Instrument) (instrument, error) {
 	if len(inst.Samples) != 1 {
 		return instrument{}, fmt.Errorf("multi-sample instruments are not supported yet (found %d)", len(inst.Samples))
 	}

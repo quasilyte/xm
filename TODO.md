@@ -1,5 +1,4 @@
 Optimization:
-- make xmfile parser reusable
 - cut comment-only samples
 
 Features:
