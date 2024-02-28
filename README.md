@@ -36,9 +36,12 @@ xmParser := xmfile.NewParser(xmfile.ParserConfig{})
 2. Decode the XM files that you want to work with.
 
 ```go
-// xmModule can be manipulated as needed, it's just a data, after all.
+// xmModule can be manipulated as needed, it's just data after all.
 // You can add some effects to the module, or mute some instruments, etc.
-xmModule, err := xmParser.ParseFromBytes(data)
+//
+// There is also a Parse method that uses an io.Reader instead of []byte.
+xmData, _ := os.ReadFile("path/to/music.xm")
+xmModule, err := xmParser.ParseFromBytes(xmData)
 ```
 
 3. Compile an XM module into a playable stream.
