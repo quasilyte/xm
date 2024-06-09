@@ -452,7 +452,7 @@ func (c *moduleCompiler) generateNoteFlags(n *patternNote) patternNoteFlags {
 	offset := n.effect.Index()
 	for _, e := range c.result.effectTab[offset : offset+numEffects] {
 		switch e.op {
-		case xmdb.EffectNotePortamento:
+		case xmdb.EffectNotePortamento, xmdb.EffectNotePortamentoWithVolumeSlide:
 			flags |= noteHasNotePortamento
 		case xmdb.EffectArpeggio:
 			flags |= noteHasArpeggio
@@ -527,7 +527,8 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 			compiled.arp[0] = e.Arg >> 4                       // speed
 			compiled.floatValue = float64(e.Arg&0b1111) / 0x0F // depth
 
-		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide, xmdb.EffectGlobalVolumeSlide:
+		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide, xmdb.EffectGlobalVolumeSlide,
+			xmdb.EffectNotePortamentoWithVolumeSlide:
 			slideUp := e.Arg >> 4
 			slideDown := e.Arg & 0b1111
 			if slideUp > 0 && slideDown > 0 {
