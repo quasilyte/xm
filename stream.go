@@ -262,16 +262,15 @@ func (s *Stream) Read(b []byte) (int, error) {
 	written := 0
 	eof := false
 
-	bytesPerTick := s.module.bytesPerTick
-	for len(b) > bytesPerTick {
+	for len(b) > s.bytesPerTick {
 		if !s.nextTick() {
 			eof = true
 			break
 		}
-		s.readTick(b[:bytesPerTick])
+		s.readTick(b[:s.bytesPerTick])
 
-		written += bytesPerTick
-		b = b[bytesPerTick:]
+		written += s.bytesPerTick
+		b = b[s.bytesPerTick:]
 	}
 
 	s.bytePos += written
@@ -339,7 +338,7 @@ func (s *Stream) setBPM(bpm float64) {
 // See StreamInfo for more details.
 func (s *Stream) GetInfo() StreamInfo {
 	return StreamInfo{
-		BytesPerTick: uint(s.module.bytesPerTick),
+		BytesPerTick: uint(s.bytesPerTick),
 		MemoryUsage:  moduleSize(&s.module),
 	}
 }
@@ -465,7 +464,7 @@ func (s *Stream) nextRow() bool {
 		s.advanceChannelRow(&s.channels[i], &m.noteTab[notes[i]])
 	}
 
-	s.t += s.module.secondsPerRow
+	s.t += s.secondsPerRow
 	s.rowTicksRemain = s.ticksPerRow
 	s.tickIndex = -1
 	return true
@@ -721,7 +720,7 @@ func (s *Stream) readTick(b []byte) {
 	// The slightest change inside this nested loop can result in ~10% playback
 	// performance regression.
 
-	n := s.module.bytesPerTick
+	n := len(b)
 
 	const (
 		rampBytes  = 2 * 2 * numRampPoints
