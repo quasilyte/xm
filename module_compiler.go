@@ -370,7 +370,7 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 		noteSliceOffset += numNotes
 
 		noteIndex := 0
-		for _, row := range rawPat.Rows {
+		for rowIndex, row := range rawPat.Rows {
 			for _, noteID := range row.Notes {
 				rawNote := m.Notes[noteID]
 				var n patternNote
@@ -397,7 +397,10 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 					e1.Op = xmdb.EffectEarlyKeyOff
 				}
 				e2 := xmdb.EffectFromVolumeByte(rawNote.Volume)
-				e3 := xmdb.ConvertEffect(rawNote)
+				e3, err := xmdb.ConvertEffect(rawNote)
+				if err != nil {
+					fmt.Printf("[WARNING] %s: pattern %d: row %d: %v\n", m.Name, i, rowIndex, err)
+				}
 				ek, err := c.compileEffect(e1, e2, e3)
 				if err != nil {
 					return err

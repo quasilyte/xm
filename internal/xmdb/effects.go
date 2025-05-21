@@ -1,6 +1,7 @@
 package xmdb
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/quasilyte/xm/xmfile"
@@ -106,8 +107,10 @@ const (
 	EffectSampleOffset
 )
 
-func ConvertEffect(n xmfile.PatternNote) Effect {
+func ConvertEffect(n xmfile.PatternNote) (Effect, error) {
 	e := Effect{Arg: n.EffectParameter}
+
+	var err error
 
 	switch n.EffectType {
 	case 0x00:
@@ -147,8 +150,22 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 
 	case 0x0E:
 		switch e.Arg >> 4 {
+		case 0x01:
+			err = fmt.Errorf("unsupported 0x0E fine portamento up: %02x => %02X", n.EffectType, e.Arg)
+		case 0x02:
+			err = fmt.Errorf("unsupported 0x0E fine portamento down: %02x => %02X", n.EffectType, e.Arg)
+		case 0x0A:
+			e.Op = EffectFineVolumeSlideUp
+			e.Arg = e.Arg & 0x0f
+		case 0x0B:
+			e.Op = EffectFineVolumeSlideDown
+			e.Arg = e.Arg & 0x0f
 		case 0x0C:
 			e.Op = EffectNoteCut
+		case 0x0D:
+			err = fmt.Errorf("unsupported 0x0E note delay: %02x => %02X", n.EffectType, e.Arg)
+		default:
+			err = fmt.Errorf("unsupported 0x0E effect: %02x => %02X (%02x)", n.EffectType, e.Arg>>4, e.Arg)
 		}
 
 	case 0x0F:
@@ -173,11 +190,16 @@ func ConvertEffect(n xmfile.PatternNote) Effect {
 	case 0x19:
 		e.Op = EffectPanningSlide
 
+	case 0x21:
+		err = errors.New("unsupported effect X1x extra fine portamento up")
+	case 0x22:
+		err = errors.New("unsupported effect X2x extra fine portamento down")
+
 	default:
-		fmt.Printf("unsupported effect: %02X\n", n.EffectType)
+		err = fmt.Errorf("unsupported effect: %02X", n.EffectType)
 	}
 
-	return e
+	return e, err
 }
 
 func EffectFromVolumeByte(v uint8) Effect {
