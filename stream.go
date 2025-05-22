@@ -528,6 +528,17 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 				ch.portamentoDownValue = e.floatValue
 			}
 
+		case xmdb.EffectFinePortamentoUp:
+			// XM_MINPERIOD is defined as 50 in MilkyTracker.
+			if e.floatValue != 0 {
+				ch.period = clampMin(ch.period-e.floatValue, 50)
+			}
+
+		case xmdb.EffectFinePortamentoDown:
+			if e.floatValue != 0 {
+				ch.period += e.floatValue
+			}
+
 		case xmdb.EffectNotePortamento:
 			if n.raw == 0 {
 				break

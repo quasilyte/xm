@@ -54,6 +54,14 @@ const (
 	// Arg: target row number (on the next pattern)
 	EffectPatternBreak
 
+	// Encoding: effect=0x0E and x=1 (E1x)
+	// Arg: portamento speed
+	EffectFinePortamentoUp
+
+	// Encoding: effect=0x0E and x=2 (E2x)
+	// Arg: portamento speed
+	EffectFinePortamentoDown
+
 	// Encoding: part of the volume byte
 	EffectVolumeSlideDown
 	EffectVolumeSlideUp
@@ -155,9 +163,11 @@ func ConvertEffect(n xmfile.PatternNote) (Effect, error) {
 	case 0x0E:
 		switch e.Arg >> 4 {
 		case 0x01:
-			err = fmt.Errorf("unsupported 0x0E fine portamento up: %02x => %02X", n.EffectType, e.Arg)
+			e.Op = EffectFinePortamentoUp
+			e.Arg = e.Arg & 0x0f
 		case 0x02:
-			err = fmt.Errorf("unsupported 0x0E fine portamento down: %02x => %02X", n.EffectType, e.Arg)
+			e.Op = EffectFinePortamentoDown
+			e.Arg = e.Arg & 0x0f
 		case 0x0A:
 			e.Op = EffectFineVolumeSlideUp
 			e.Arg = e.Arg & 0x0f

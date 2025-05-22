@@ -523,7 +523,7 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 		case xmdb.EffectVolumeSlideUp, xmdb.EffectVolumeSlideDown, xmdb.EffectFineVolumeSlideUp, xmdb.EffectFineVolumeSlideDown:
 			compiled.floatValue = float64(e.Arg) / 64
 
-		case xmdb.EffectPortamentoUp, xmdb.EffectPortamentoDown, xmdb.EffectNotePortamento:
+		case xmdb.EffectPortamentoUp, xmdb.EffectPortamentoDown, xmdb.EffectFinePortamentoUp, xmdb.EffectFinePortamentoDown, xmdb.EffectNotePortamento:
 			compiled.floatValue = float64(e.Arg) * 4
 
 		case xmdb.EffectVibrato:
