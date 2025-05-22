@@ -90,6 +90,10 @@ const (
 	// Arg: tick number
 	EffectKeyOff
 
+	// Encoding: effect=0x15
+	// Arg: tick number
+	EffectSetEnvelopePos
+
 	// Encoding: effect=0x0E and x=C
 	// Arg: tick number
 	EffectNoteCut
@@ -187,8 +191,14 @@ func ConvertEffect(n xmfile.PatternNote) (Effect, error) {
 	case 0x14:
 		e.Op = EffectKeyOff
 
+	case 0x15:
+		e.Op = EffectSetEnvelopePos
+
 	case 0x19:
 		e.Op = EffectPanningSlide
+
+	case 0x1B:
+		err = errors.New("unsupported effect Rxy retrigger note with volume slide")
 
 	case 0x21:
 		err = errors.New("unsupported effect X1x extra fine portamento up")

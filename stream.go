@@ -532,10 +532,9 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 			if n.raw == 0 {
 				break
 			}
-			if e.floatValue != 0 {
-				ch.notePortamentoValue = e.floatValue
-			}
-			// TODO: can we precalculate this period in the compiler, somehow?
+			// Note: notePortamentoValue was guarded by e.floatValue>0 condition
+			// before, but it looks incorrect?
+			ch.notePortamentoValue = e.floatValue
 			ch.notePortamentoTargetPeriod = linearPeriod(calcRealNote(n.raw, ch.inst))
 
 		case xmdb.EffectVibrato:
@@ -646,6 +645,9 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 				break
 			}
 			s.keyOff(ch)
+
+		case xmdb.EffectSetEnvelopePos:
+			ch.volumeEnvelope.frame = int(e.rawValue)
 
 		case xmdb.EffectNoteCut:
 			if e.arp[0] != uint8(s.tickIndex) {
