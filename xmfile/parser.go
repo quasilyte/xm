@@ -66,9 +66,18 @@ func (p *parser) reset() {
 	p.patternRowPool.Reset()
 
 	// Now reset the module.
-	p.module.Notes = p.module.Notes[:0]
-	p.module.Patterns = p.module.Patterns[:0]
-	p.module.Instruments = p.module.Instruments[:0]
+	{
+		notes := p.module.Notes[:0]
+		patterns := p.module.Patterns[:0]
+		instruments := p.module.Instruments[:0]
+		patternOrder := p.module.PatternOrder[:0]
+		p.module = Module{
+			Notes:        notes,
+			Patterns:     patterns,
+			Instruments:  instruments,
+			PatternOrder: patternOrder,
+		}
+	}
 }
 
 func (p *parser) startStage(name string) {
