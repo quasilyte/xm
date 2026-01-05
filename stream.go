@@ -166,6 +166,13 @@ func (s *Stream) SetLooping(loop bool) {
 	s.settings.loop = loop
 }
 
+func (s *Stream) assignCompiledModule(m module) {
+	s.module = m
+
+	// Call a rewind() that won't trigger a Sync event.
+	s.rewind()
+}
+
 // LoadModule assigns a new XM module to this stream.
 //
 // Loading a module involves its compilation which is a slow process.
@@ -194,10 +201,8 @@ func (s *Stream) LoadModule(m *xmfile.Module, config LoadModuleConfig) error {
 	if err != nil {
 		return err
 	}
-	s.module = compiled
 
-	// Call a rewind() that won't trigger a Sync event.
-	s.rewind()
+	s.assignCompiledModule(compiled)
 
 	return nil
 }
@@ -326,6 +331,11 @@ func (s *Stream) rewind() {
 
 	s.ticksPerRow = s.module.ticksPerRow
 	s.setBPM(s.module.bpm)
+}
+
+func (s *Stream) setTempo(tempo int) {
+	s.module.ticksPerRow = tempo
+	s.secondsPerRow = calcSecondsPerRow(s.module.ticksPerRow, s.bpm)
 }
 
 func (s *Stream) setBPM(bpm float64) {

@@ -53,9 +53,12 @@ func abs(x float64) float64 {
 	return x
 }
 
+func ticksPerSecond(bpm float64) float64 {
+	return bpm * 0.4
+}
+
 func calcSecondsPerRow(ticksPerRow int, bpm float64) float64 {
-	ticksPerSecond := bpm * 0.4
-	return 1 / (ticksPerSecond / float64(ticksPerRow))
+	return 1 / (ticksPerSecond(bpm) / float64(ticksPerRow))
 }
 
 func calcSamplesPerTick(sampleRate, bpm float64) (samplesPerTick float64, bytesPerTick int) {

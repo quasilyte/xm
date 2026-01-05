@@ -11,7 +11,7 @@ import (
 )
 
 type moduleCompiler struct {
-	result module
+	result *module
 
 	effectSet map[uint64]effectKey
 
@@ -20,23 +20,40 @@ type moduleCompiler struct {
 	samplePool []int16
 
 	subSamples bool
+	isSynth    bool
+}
+
+func newSynthCompiler() *moduleCompiler {
+	return &moduleCompiler{
+		effectBuf: make([]xmdb.Effect, 0, 4),
+		effectSet: make(map[uint64]effectKey, 8),
+		isSynth:   true,
+	}
 }
 
 func compileModule(m *xmfile.Module, config moduleConfig) (module, error) {
 	c := &moduleCompiler{
-		effectSet:  make(map[uint64]effectKey, 24),
 		effectBuf:  make([]xmdb.Effect, 0, 4),
+		effectSet:  make(map[uint64]effectKey, 24),
 		subSamples: config.subSamples,
 	}
-	c.result = module{
+	compiled := module{
+		effectTab:   make([]noteEffect, 0, 24),
 		sampleRate:  float64(config.sampleRate),
 		bpm:         float64(config.bpm),
 		ticksPerRow: int(config.tempo),
-		effectTab:   make([]noteEffect, 0, 24),
 		noteTab:     make([]patternNote, len(m.Notes)),
 	}
+	c.result = &compiled
 	err := c.compile(m)
-	return c.result, err
+	return compiled, err
+}
+
+func (c *moduleCompiler) reset(dst *module) {
+	c.result = dst
+
+	c.effectBuf = c.effectBuf[:0]
+	clear(c.effectSet)
 }
 
 func (c *moduleCompiler) compile(m *xmfile.Module) error {
@@ -55,7 +72,7 @@ func (c *moduleCompiler) compile(m *xmfile.Module) error {
 		return err
 	}
 
-	// Not assign pattern note flags.
+	// Now assign pattern note flags.
 	for i := range c.result.patterns {
 		p := &c.result.patterns[i]
 		for j := range p.notes {
@@ -342,6 +359,69 @@ func (c *moduleCompiler) compileEnvelope(points []xmfile.EnvelopePoint, flags xm
 	return e
 }
 
+func (c *moduleCompiler) compileNote(rawNote xmfile.PatternNote) (patternNote, bool, error) {
+	var n patternNote
+	var inst *instrument
+	badInstrument := false
+	if rawNote.Instrument != 0 {
+		i := int(rawNote.Instrument) - 1
+		if i < len(c.result.instruments) {
+			inst = &c.result.instruments[i]
+		} else {
+			badInstrument = true
+		}
+	}
+
+	fnote := float64(rawNote.Note)
+	period := 0.0
+	isValid := rawNote.Note > 0 && rawNote.Note < 97
+	if isValid && rawNote.Instrument > 0 {
+		period = linearPeriod(calcRealNote(fnote, inst))
+	}
+
+	e1 := xmdb.Effect{}
+	if rawNote.Note == 97 {
+		e1.Op = xmdb.EffectEarlyKeyOff
+	}
+	e2 := xmdb.EffectFromVolumeByte(rawNote.Volume)
+	e3, warnErr := xmdb.ConvertEffect(rawNote)
+	ek, err := c.compileEffect(e1, e2, e3)
+	if err != nil {
+		return n, false, err
+	}
+
+	n = patternNote{
+		raw:    fnote,
+		period: period,
+		inst:   inst,
+		effect: ek,
+	}
+	if isValid {
+		n.flags |= noteValid
+	}
+	if badInstrument {
+		n.flags |= noteBadInstrument
+	}
+
+	var kind patternNoteKind
+	switch {
+	case rawNote.Note == 0 && rawNote.Instrument == 0:
+		kind = noteEmpty
+	case rawNote.Note == 0 && rawNote.Instrument > 0:
+		kind = noteGhostInstrument
+	case n.flags.Contains(noteValid) && rawNote.Instrument == 0:
+		kind = noteGhost
+	case n.flags.Contains(noteValid) && rawNote.Instrument > 0:
+		kind = noteNormal
+	default:
+		// Probably a special note like "key off".
+		kind = noteEmpty
+	}
+	n.flags |= patternNoteFlags(kind) << (64 - 2)
+
+	return n, true, warnErr
+}
+
 func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 	c.result.patterns = make([]pattern, m.NumPatterns)
 	c.result.patternOrder = make([]*pattern, len(m.PatternOrder))
@@ -373,67 +453,14 @@ func (c *moduleCompiler) compilePatterns(m *xmfile.Module) error {
 		for rowIndex, row := range rawPat.Rows {
 			for _, noteID := range row.Notes {
 				rawNote := m.Notes[noteID]
-				var n patternNote
-				var inst *instrument
-				badInstrument := false
-				if rawNote.Instrument != 0 {
-					i := int(rawNote.Instrument) - 1
-					if i < len(c.result.instruments) {
-						inst = &c.result.instruments[i]
-					} else {
-						badInstrument = true
-					}
-				}
 
-				fnote := float64(rawNote.Note)
-				period := 0.0
-				isValid := rawNote.Note > 0 && rawNote.Note < 97
-				if isValid && rawNote.Instrument > 0 {
-					period = linearPeriod(calcRealNote(fnote, inst))
-				}
-
-				e1 := xmdb.Effect{}
-				if rawNote.Note == 97 {
-					e1.Op = xmdb.EffectEarlyKeyOff
-				}
-				e2 := xmdb.EffectFromVolumeByte(rawNote.Volume)
-				e3, err := xmdb.ConvertEffect(rawNote)
+				n, ok, err := c.compileNote(rawNote)
 				if err != nil {
+					if !ok {
+						return err
+					}
 					fmt.Printf("[WARNING] %s: pattern %d: row %d: %v\n", m.Name, i, rowIndex, err)
 				}
-				ek, err := c.compileEffect(e1, e2, e3)
-				if err != nil {
-					return err
-				}
-
-				n = patternNote{
-					raw:    fnote,
-					period: period,
-					inst:   inst,
-					effect: ek,
-				}
-				if isValid {
-					n.flags |= noteValid
-				}
-				if badInstrument {
-					n.flags |= noteBadInstrument
-				}
-
-				var kind patternNoteKind
-				switch {
-				case rawNote.Note == 0 && rawNote.Instrument == 0:
-					kind = noteEmpty
-				case rawNote.Note == 0 && rawNote.Instrument > 0:
-					kind = noteGhostInstrument
-				case n.flags.Contains(noteValid) && rawNote.Instrument == 0:
-					kind = noteGhost
-				case n.flags.Contains(noteValid) && rawNote.Instrument > 0:
-					kind = noteNormal
-				default:
-					// Probably a special note like "key off".
-					kind = noteEmpty
-				}
-				n.flags |= patternNoteFlags(kind) << (64 - 2)
 
 				pat.notes[noteIndex] = noteID
 				if !c.result.noteTab[noteID].flags.Contains(noteInitialized) {
