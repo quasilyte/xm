@@ -2,6 +2,8 @@ module github.com/quasilyte/xm/cmd/ebitengine-example
 
 go 1.22rc1
 
+replace github.com/quasilyte/xm => ../../
+
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.6.6
 	github.com/quasilyte/xm v0.0.0-20231205130420-91db6da02fbe

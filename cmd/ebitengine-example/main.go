@@ -8,9 +8,30 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/quasilyte/xm"
 	"github.com/quasilyte/xm/xmfile"
 )
+
+/*
+note indexes
+C  = 0
+C# = 1
+D  = 2
+D# = 3
+E  = 4
+F  = 5
+F# = 6
+G  = 7
+G# = 8
+A  = 9
+A# = 10
+B  = 11
+
+D#5 = 52
+octave := 5-1
+(octave × 12) + note_index + 1 = 52
+*/
 
 // This simple CLI tool plays the specified XM track using Ebitengine audio player.
 
@@ -40,6 +61,10 @@ func main() {
 		panic(fmt.Sprintf("compiling XM module: %v", err))
 	}
 
+	for _, n := range xmModule.Patterns[6].Rows[4].Notes {
+		fmt.Println(xmModule.Notes[n])
+	}
+
 	// Create a sound player using the Ebitengine audio context.
 	// You can have multiple players, but only one audio context.
 	// See Ebitengine docs to learn more.
@@ -53,6 +78,21 @@ func main() {
 	g := &game{
 		player:   player,
 		filename: filename,
+		paused:   true,
+	}
+
+	g.synth = xm.NewSynthesizer(xm.SynthesizerConfig{
+		NumChannels: 2,
+	})
+	if err := g.synth.LoadInstruments(xmModule, xm.LoadModuleConfig{}); err != nil {
+		panic(err)
+	}
+	{
+		player, err := audioContext.NewPlayer(g.synth)
+		if err != nil {
+			panic(err)
+		}
+		g.synthPlayer = player
 	}
 
 	if err := ebiten.RunGame(g); err != nil {
@@ -61,20 +101,51 @@ func main() {
 }
 
 type game struct {
-	player   *audio.Player
+	player *audio.Player
+
+	synth       *xm.Synthesizer
+	synthPlayer *audio.Player
+
 	filename string
+	paused   bool
 }
 
 func (g *game) Update() error {
-	if !g.player.IsPlaying() {
-		g.player.Play()
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		g.paused = !g.paused
+		if g.player.IsPlaying() {
+			g.player.Pause()
+		} else {
+			g.player.Play()
+		}
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.Key1) {
+		g.synth.PlayNote(0, xmfile.PatternNote{
+			Note:       52,
+			Instrument: 17,
+		})
+		g.synthPlayer.Rewind()
+		g.synthPlayer.Play()
+	}
+	if inpututil.IsKeyJustPressed(ebiten.Key2) {
+		g.synth.PlayNote(0, xmfile.PatternNote{
+			Note:       52,
+			Instrument: 18,
+		})
+		g.synthPlayer.Rewind()
+		g.synthPlayer.Play()
 	}
 
 	return nil
 }
 
 func (g *game) Draw(screen *ebiten.Image) {
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("Playing %s...", g.filename))
+	if g.paused {
+		ebitenutil.DebugPrint(screen, "Paused... press SPACE")
+	} else {
+		ebitenutil.DebugPrint(screen, fmt.Sprintf("Playing %s...", g.filename))
+	}
 }
 
 func (g *game) Layout(_, _ int) (int, int) {

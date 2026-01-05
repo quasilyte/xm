@@ -103,6 +103,7 @@ func (c *moduleCompiler) compileInstruments(m *xmfile.Module) error {
 	c.result.instruments = make([]instrument, m.NumInstruments)
 	for i, rawInst := range m.Instruments {
 		if len(rawInst.Samples) == 0 {
+			c.result.instruments[i].id = -1
 			continue
 		}
 		dstInst, err := c.compileInstrument(rawInst)
