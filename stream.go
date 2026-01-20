@@ -513,7 +513,7 @@ func (s *Stream) applyRowEffect(ch *streamChannel, n *patternNote) {
 		case xmdb.EffectEarlyKeyOff:
 			s.keyOff(ch)
 
-		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide:
+		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide, xmdb.EffectNotePortamentoWithVolumeSlide:
 			if e.floatValue != 0 {
 				ch.volumeSlideValue = e.floatValue
 			}
@@ -698,6 +698,19 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 				break
 			}
 			ch.panning = clamp(ch.panning+ch.panningSlideValue, 0, 1)
+
+		case xmdb.EffectNotePortamentoWithVolumeSlide:
+			if s.tickIndex == 0 {
+				break
+			}
+			if ch.notePortamentoTargetPeriod == 0 {
+				break
+			}
+			if ch.period == ch.notePortamentoTargetPeriod {
+				break
+			}
+			ch.period = slideTowards(ch.period, ch.notePortamentoTargetPeriod, ch.notePortamentoValue)
+			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
 
 		case xmdb.EffectVibratoWithVolumeSlide:
 			if s.tickIndex == 0 {
