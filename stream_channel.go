@@ -125,6 +125,10 @@ func (ch *streamChannel) assignNote(n *patternNote) {
 	}
 
 	ch.vibratoPeriodOffset = 0
+	// Like in FT2, only a triggered instrument restarts the vibrato wave.
+	if !hasNotePortamento && noteKind != noteGhost {
+		ch.vibratoStep = 0
+	}
 	ch.keyOn = true
 	ch.resetEnvelopes()
 

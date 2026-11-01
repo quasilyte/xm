@@ -555,8 +555,9 @@ func (c *moduleCompiler) compileEffect(e1, e2, e3 xmdb.Effect) (effectKey, error
 			compiled.floatValue = float64(e.Arg) * 4
 
 		case xmdb.EffectVibrato:
-			compiled.arp[0] = e.Arg >> 4                       // speed
-			compiled.floatValue = float64(e.Arg&0b1111) / 0x0F // depth
+			// Every depth unit gives 1/8 of a semitone at the wave peak (same as in FT2).
+			compiled.arp[0] = e.Arg >> 4                    // speed
+			compiled.floatValue = float64(e.Arg&0b1111) / 4 // depth
 
 		case xmdb.EffectVolumeSlide, xmdb.EffectVibratoWithVolumeSlide, xmdb.EffectGlobalVolumeSlide:
 			slideUp := e.Arg >> 4

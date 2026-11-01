@@ -371,16 +371,18 @@ func (s *Stream) nextTick() bool {
 
 		s.tickEnvelopes(ch)
 
+		// The effects should go before the volume calculations below,
+		// otherwise their volume and panning changes are delayed by a tick.
+		if !ch.effect.IsEmpty() {
+			s.applyTickEffect(ch)
+		}
+
 		panning := ch.panning + (ch.panningEnvelope.value-0.5)*(0.5-abs(ch.panning-0.5))*2
 
 		// 0.25 is an amplification heuristic to avoid clipping.
 		volume := 0.25 * baseVolume * ch.volume * ch.fadeoutVolume * ch.volumeEnvelope.value
 		ch.targetVolume[0] = volume * math.Sqrt(1.0-panning)
 		ch.targetVolume[1] = volume * math.Sqrt(panning)
-
-		if !ch.effect.IsEmpty() {
-			s.applyTickEffect(ch)
-		}
 
 		if ch.arpeggioRunning && !note.flags.Contains(noteHasArpeggio) {
 			ch.arpeggioRunning = false
@@ -619,8 +621,10 @@ func (s *Stream) keyOff(ch *streamChannel) {
 }
 
 func (s *Stream) vibrato(ch *streamChannel) {
+	// Like in FT2, the pitch goes down first and
+	// the wave position is advanced after it's used.
+	ch.vibratoPeriodOffset = 2 * waveform(ch.vibratoStep) * ch.vibratoDepth
 	ch.vibratoStep += ch.vibratoSpeed
-	ch.vibratoPeriodOffset = -2 * waveform(ch.vibratoStep) * ch.vibratoDepth
 }
 
 func (s *Stream) applyTickEffect(ch *streamChannel) {
@@ -708,13 +712,25 @@ func (s *Stream) applyTickEffect(ch *streamChannel) {
 			ch.volume = clamp(ch.volume+ch.volumeSlideValue, 0, 1)
 
 		case xmdb.EffectVolumeSlideDown:
+			if s.tickIndex == 0 {
+				break
+			}
 			ch.volume = clampMin(ch.volume-e.floatValue, 0)
 		case xmdb.EffectVolumeSlideUp:
+			if s.tickIndex == 0 {
+				break
+			}
 			ch.volume = clampMax(ch.volume+e.floatValue, 1)
 
 		case xmdb.EffectPanningSlideLeft:
+			if s.tickIndex == 0 {
+				break
+			}
 			ch.panning = clampMin(ch.panning-e.floatValue, 0)
 		case xmdb.EffectPanningSlideRight:
+			if s.tickIndex == 0 {
+				break
+			}
 			ch.panning = clampMax(ch.panning+e.floatValue, 1)
 		}
 	}
